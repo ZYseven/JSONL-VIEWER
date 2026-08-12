@@ -37,6 +37,17 @@ test('keeps controls floating and the tree inside a narrow viewport', async ({ p
   expect(metrics.body).toBeLessThanOrEqual(metrics.viewport);
 });
 
+test('uses the VS Code UI font, compact left padding, and depth-aware brackets', async ({ page }) => {
+  await expect(page.locator('body')).toHaveCSS('font-family', /Consolas|Segoe UI|sans-serif/i);
+  await expect(page.locator('.row').first()).toHaveCSS('padding-left', '28px');
+  const rootBracket = page.locator('.node[data-id="$"] > .row > .preview');
+  await expect(rootBracket).toHaveClass(/bracket/);
+  await expect(rootBracket).toHaveClass(/depth-0/);
+  await page.locator('.node[data-id="$/scores#0"] > .row > .toggle').click();
+  await expect(page.locator('.node[data-id="$/scores#0"] > .row > .preview')).toHaveClass(/depth-1/);
+  await expect(page.locator('.node[data-id="$/scores#0"] > .closing > .closing-body')).toHaveClass(/depth-1/);
+});
+
 test('shows copy affordance only on the hovered token', async ({ page }) => {
   const key = page.getByText('"sample_id"', { exact: true });
   await expect(key).toHaveCSS('cursor', 'pointer');

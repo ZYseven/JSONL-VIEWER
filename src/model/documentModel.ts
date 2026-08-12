@@ -192,6 +192,10 @@ export class DocumentModel {
     return node.type === 'string' ? JSON.stringify(node.value) : node.raw;
   }
 
+  dispose(): void {
+    // Kept for parity with streaming document models.
+  }
+
   private parseRecord(record: IndexedJsonlRecord, rootIndex: number): JsonNode {
     const cached = this.nodes.get(record.id);
     if (cached) return cached;
@@ -262,7 +266,7 @@ export class DocumentModel {
       id: node.id,
       type: node.type,
       key: node.key,
-      label: label ?? (node.key === undefined && node.keyOccurrence !== undefined ? `[${node.keyOccurrence}]` : undefined),
+      label,
       value: truncated ? `${displayValue.slice(0, 512)}…` : displayValue,
       preview: node.type === 'object' ? `{${node.children.length}}` : node.type === 'array' ? `[${node.children.length}]` : undefined,
       line: node.start.line,

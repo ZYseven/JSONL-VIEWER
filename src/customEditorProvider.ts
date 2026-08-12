@@ -1,10 +1,14 @@
 import * as vscode from 'vscode';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { DocumentModel } from './model/documentModel';
+import { StreamingJsonlDocumentModel } from './model/streamingJsonlDocumentModel';
 import { ExtensionToWebview, WebviewToExtension } from './webview/protocol';
 
 const CHUNK_SIZE_JSONL = 200;
 const CHUNK_SIZE_JSON = 100;
+const STREAMING_JSONL_THRESHOLD = 5 * 1024 * 1024;
+
+type ViewerModel = DocumentModel | StreamingJsonlDocumentModel;
 
 interface ReadonlyJsonDocument extends vscode.CustomDocument {
   readonly uri: vscode.Uri;
@@ -26,11 +30,20 @@ export class JsonlViewerProvider implements vscode.CustomReadonlyEditorProvider<
       localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'dist')]
     };
     panel.webview.html = this.html(panel.webview, zh);
+    let model: ViewerModel | undefined;
+    let loadController = new AbortController();
+    let disposed = false;
+    const disposeLoad = panel.onDidDispose(() => {
+      disposed = true;
+      loadController.abort();
+      model?.dispose?.();
+    });
 
-    let model: DocumentModel;
     try {
-      model = await this.loadModel(document.uri);
+      model = await this.loadModel(document.uri, loadController.signal);
+      if (disposed) return;
     } catch (error) {
+      if (disposed || isAbortError(error)) return;
       const details = error instanceof Error ? error.message : String(error);
       void vscode.window.showErrorMessage(`json viewer: ${details}`);
       panel.webview.html = this.errorHtml(zh, details);
@@ -40,7 +53,7 @@ export class JsonlViewerProvider implements vscode.CustomReadonlyEditorProvider<
     const send = (message: ExtensionToWebview): Thenable<boolean> => panel.webview.postMessage(message);
     const sendDocument = (): void => {
       void send({ type: 'settings', fontSize: fontSize() });
-      void send({ type: 'document', payload: model.summary() });
+      void send({ type: 'document', payload: model!.summary() });
     };
     const messages = panel.webview.onDidReceiveMessage(async (message: WebviewToExtension) => {
       try {
@@ -49,33 +62,37 @@ export class JsonlViewerProvider implements vscode.CustomReadonlyEditorProvider<
             sendDocument();
             break;
           case 'requestChunk': {
-            const size = model.kind === 'jsonl' ? CHUNK_SIZE_JSONL : CHUNK_SIZE_JSON;
-            const chunk = model.chunk(message.start, size);
+            const size = model!.kind === 'jsonl' ? CHUNK_SIZE_JSONL : CHUNK_SIZE_JSON;
+            const chunk = model!.chunk(message.start, size);
             await send({ type: 'chunkData', requestId: message.requestId, start: message.start, ...chunk });
             break;
           }
           case 'requestChildren': {
-            const children = model.children(message.nodeId, message.start, CHUNK_SIZE_JSON);
+            const children = await model!.children(message.nodeId, message.start, CHUNK_SIZE_JSON);
             await send({ type: 'childrenData', requestId: message.requestId, nodeId: message.nodeId, start: message.start, ...children });
             break;
           }
           case 'requestDisplayValue': {
-            const value = model.displayValue(message.nodeId);
+            const value = model!.displayValue(message.nodeId);
             if (value !== undefined) await send({ type: 'displayValue', requestId: message.requestId, nodeId: message.nodeId, value });
             break;
           }
           case 'findMatches':
-            await send({ type: 'searchResults', requestId: message.requestId, matches: model.search(message.query) });
+            await send({ type: 'searchResults', requestId: message.requestId, matches: model!.search(message.query) });
             break;
           case 'copy': {
-            const value = model.copy(message.nodeId, message.mode);
+            const value = model!.copy(message.nodeId, message.mode);
             if (value !== undefined) await vscode.env.clipboard.writeText(value);
             break;
           }
-          case 'refresh':
-            model = await this.loadModel(document.uri);
+          case 'refresh': {
+            loadController.abort();
+            model?.dispose?.();
+            loadController = new AbortController();
+            model = await this.loadModel(document.uri, loadController.signal);
             sendDocument();
             break;
+          }
         }
       } catch (error) {
         const details = error instanceof Error ? error.message : String(error);
@@ -91,13 +108,24 @@ export class JsonlViewerProvider implements vscode.CustomReadonlyEditorProvider<
     panel.onDidDispose(() => {
       messages.dispose();
       settings.dispose();
+      disposeLoad.dispose();
     });
   }
 
-  private async loadModel(uri: vscode.Uri): Promise<DocumentModel> {
+  private async loadModel(uri: vscode.Uri, signal: AbortSignal): Promise<ViewerModel> {
+    if (uri.scheme === 'file' && /\.(jsonl|ndjson)$/i.test(uri.path)) {
+      const metadata = await stat(uri.fsPath);
+      if (signal.aborted) throw abortError();
+      if (metadata.size >= STREAMING_JSONL_THRESHOLD) {
+        const model = new StreamingJsonlDocumentModel(uri.fsPath, signal);
+        await model.initialize();
+        return model;
+      }
+    }
     const bytes = uri.scheme === 'file'
-      ? await readFile(uri.fsPath)
+      ? await readFile(uri.fsPath, { signal })
       : await vscode.workspace.fs.readFile(uri);
+    if (signal.aborted) throw abortError();
     return new DocumentModel(new TextDecoder('utf-8').decode(bytes), uri.path);
   }
 
@@ -150,8 +178,18 @@ export class JsonlViewerProvider implements vscode.CustomReadonlyEditorProvider<
 }
 
 function fontSize(): number {
-  const configured = vscode.workspace.getConfiguration('jsonViewer').get<number>('fontSize', 13);
+  const configured = vscode.workspace.getConfiguration('jsonViewer').get<number>('fontSize', 18);
   return Math.min(24, Math.max(10, configured));
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
+}
+
+function abortError(): Error {
+  const error = new Error('The operation was aborted.');
+  error.name = 'AbortError';
+  return error;
 }
 
 function nonceValue(): string {
@@ -161,10 +199,10 @@ function nonceValue(): string {
 
 function styles(): string {
   return `
-:root { color-scheme: light dark; --viewer-font-size: 13px; --viewer-line-height: 1.6em; --viewer-indent: 22px; --viewer-padding: 76px; }
+:root { color-scheme: light dark; --viewer-font-size: 18px; --viewer-line-height: 1.55em; --viewer-indent: 20px; --viewer-padding: 28px; --bracket-0: var(--vscode-editorBracketHighlight-foreground1, #ffd700); --bracket-1: var(--vscode-editorBracketHighlight-foreground2, #da70d6); --bracket-2: var(--vscode-editorBracketHighlight-foreground3, #179fff); }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
-body { margin: 0; overflow: hidden; color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-editor-font-family); font-size: var(--viewer-font-size); font-weight: var(--vscode-editor-font-weight, normal); }
+body { margin: 0; overflow: hidden; color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-font-family); font-size: var(--viewer-font-size); font-weight: normal; }
 button, input { font: inherit; }
 button { color: var(--vscode-icon-foreground); border: 0; cursor: pointer; }
 #content { height: 100%; padding: 18px 0 48px; overflow: auto; scrollbar-color: var(--vscode-scrollbarSlider-background) transparent; }
@@ -189,6 +227,10 @@ button { color: var(--vscode-icon-foreground); border: 0; cursor: pointer; }
 .boolean, .null { color: var(--vscode-debugTokenExpression-boolean, #569cd6); font-weight: 600; }
 .punctuation { color: var(--vscode-editor-foreground); }
 .preview { color: var(--vscode-descriptionForeground); }
+.bracket { font-weight: 600; }
+.bracket.depth-0 { color: var(--bracket-0); }
+.bracket.depth-1 { color: var(--bracket-1); }
+.bracket.depth-2 { color: var(--bracket-2); }
 .duplicate { margin-left: 6px; color: var(--vscode-editorWarning-foreground); font-size: .85em; }
 .error { color: var(--vscode-errorForeground); }
 .children[hidden], .closing[hidden], #load-more[hidden], .search-panel[hidden] { display: none; }
@@ -221,6 +263,6 @@ button { color: var(--vscode-icon-foreground); border: 0; cursor: pointer; }
 #status { position: fixed; right: 10px; bottom: 8px; color: var(--vscode-descriptionForeground); background: var(--vscode-editor-background); }
 .empty-state { padding: 24px var(--viewer-padding); color: var(--vscode-descriptionForeground); }
 @media (prefers-reduced-motion: reduce) { .toggle::before, .key, .value, .preview { transition: none; } }
-@media (max-width: 520px) { :root { --viewer-padding: 48px; --viewer-indent: 20px; } .search-panel { left: 8px; right: 8px; grid-template-columns: minmax(100px, 1fr) 38px 26px 26px 26px; } }
+@media (max-width: 520px) { :root { --viewer-padding: 20px; --viewer-indent: 18px; } .search-panel { left: 8px; right: 8px; grid-template-columns: minmax(100px, 1fr) 38px 26px 26px 26px; } }
 `;
 }

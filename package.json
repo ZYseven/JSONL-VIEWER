@@ -28,7 +28,7 @@
       "properties": {
         "jsonViewer.fontSize": {
           "type": "number",
-          "default": 13,
+          "default": 18,
           "minimum": 10,
           "maximum": 24,
           "description": "%configuration.fontSize.description%"
