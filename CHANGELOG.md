@@ -2,4 +2,7 @@
 
 ## 0.1.0
 
-- Initial development release.
+- Added a read-only custom editor for JSON, JSONL, and NDJSON.
+- Added a strict source-aware parser that preserves duplicate keys and line ranges.
+- Added incremental rendering, tree navigation, search, clipboard actions, and theme-aware styling.
+- Added parser, model, manifest, and Webview protocol test foundations.

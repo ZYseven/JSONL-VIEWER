@@ -106,9 +106,10 @@ export class DocumentModel {
   copy(nodeId: string, mode: 'keyObject' | 'value'): string | undefined {
     const node = this.nodes.get(nodeId);
     if (!node) return undefined;
-    const rendered = serializeNode(node, 0);
-    if (mode === 'keyObject' && node.key !== undefined) return `{\n  ${JSON.stringify(node.key)}: ${indentContinuation(rendered, 1)}\n}`;
-    return rendered;
+    if (mode === 'keyObject' && node.key !== undefined) {
+      return `{\n  ${JSON.stringify(node.key)}: ${serializeNode(node, 1)}\n}`;
+    }
+    return serializeNode(node, 0);
   }
 
   displayValue(nodeId: string): string | undefined {
@@ -158,13 +159,8 @@ function serializeNode(node: JsonNode, depth: number): string {
   const pad = '  '.repeat(depth + 1);
   const items = node.children.map((child) => {
     const value = serializeNode(child, depth + 1);
-    const prefixed = node.type === 'object' ? `${JSON.stringify(child.key)}: ${indentContinuation(value, depth + 1)}` : value;
+    const prefixed = node.type === 'object' ? `${JSON.stringify(child.key)}: ${value}` : value;
     return pad + prefixed;
   });
   return `${open}\n${items.join(',\n')}\n${'  '.repeat(depth)}${close}`;
-}
-
-function indentContinuation(value: string, depth: number): string {
-  const pad = '  '.repeat(depth);
-  return value.replace(/\n/g, `\n${pad}`);
 }

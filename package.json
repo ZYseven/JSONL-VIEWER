@@ -5,6 +5,14 @@
   "version": "0.1.0",
   "publisher": "ZYseven",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZYseven/JSONL-VIEWER.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ZYseven/JSONL-VIEWER/issues"
+  },
+  "homepage": "https://github.com/ZYseven/JSONL-VIEWER#readme",
   "engines": {
     "vscode": "^1.92.0"
   },

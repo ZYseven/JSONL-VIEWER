@@ -238,7 +238,7 @@ function revealCurrent(): void {
   const match = matches[currentMatch];
   if (!tree.querySelector(`.node[data-id="${cssEscape(match.pathIds[0] ?? match.nodeId)}"]`)) {
     pendingReveal = true;
-    requestChunk(Math.floor(match.rootIndex / chunkSize) * chunkSize);
+    requestChunk(loaded);
     return;
   }
   for (const idValue of match.pathIds) expanded.add(idValue);

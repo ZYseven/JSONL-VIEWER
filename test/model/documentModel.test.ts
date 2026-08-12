@@ -14,7 +14,7 @@ test('chunks JSONL records and searches unloaded records', () => {
 test('copies values and duplicate-key properties as JSON text', () => {
   const model = new DocumentModel('{"item":{"id":1},"item":2}', 'sample.json');
   const nodes = model.chunk(0, 10).nodes;
-  assert.match(model.copy(nodes[0].id, 'keyObject') ?? '', /^\{\n  "item": \{/);
+  assert.equal(model.copy(nodes[0].id, 'keyObject'), '{\n  "item": {\n    "id": 1\n  }\n}');
   assert.equal(model.copy(nodes[1].id, 'value'), '2');
   assert.equal(nodes[1].duplicate, true);
 });
