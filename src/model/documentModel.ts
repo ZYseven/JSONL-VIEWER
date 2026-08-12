@@ -18,6 +18,7 @@ export interface ViewNode {
   error?: string;
   truncated?: boolean;
   defaultExpanded?: boolean;
+  trailingComma?: boolean;
 }
 
 export interface DocumentSummary {
@@ -95,7 +96,11 @@ export class DocumentModel {
 
   children(nodeId: string, start = 0, size = 100): { nodes: ViewNode[]; done: boolean } {
     const children = this.nodes.get(nodeId)?.children ?? [];
-    const items = children.slice(start, start + size).map((node) => this.toView(node));
+    const items = children.slice(start, start + size).map((node, localIndex) => this.toView(
+      node,
+      undefined,
+      start + localIndex < children.length - 1
+    ));
     return { nodes: items, done: start + items.length >= children.length };
   }
 
@@ -178,7 +183,7 @@ export class DocumentModel {
     ));
   }
 
-  private toView(node: JsonNode, label?: string): ViewNode {
+  private toView(node: JsonNode, label?: string, trailingComma = false): ViewNode {
     const displayValue = node.children.length ? undefined : node.type === 'number' ? node.raw : node.value;
     const truncated = typeof displayValue === 'string' && displayValue.length > 262_144;
     return {
@@ -193,7 +198,8 @@ export class DocumentModel {
       childCount: node.children.length,
       duplicate: node.keyOccurrence !== undefined && node.keyOccurrence > 0,
       truncated,
-      defaultExpanded: node.children.length > 0 && (label !== undefined || node.key === undefined)
+      defaultExpanded: node.children.length > 0 && (label !== undefined || node.key === undefined),
+      trailingComma
     };
   }
 }

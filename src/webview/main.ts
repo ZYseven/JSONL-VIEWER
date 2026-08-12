@@ -131,9 +131,8 @@ loadMore.addEventListener('click', () => requestChunk(loaded));
 element<HTMLButtonElement>('refresh').addEventListener('click', () => post({ type: 'refresh' }));
 element<HTMLButtonElement>('collapse-all').addEventListener('click', () => {
   expandAllActive = false;
+  document.querySelectorAll<HTMLButtonElement>('.toggle.expanded').forEach((item) => item.click());
   expanded.clear();
-  document.querySelectorAll<HTMLElement>('.children').forEach((item) => { item.hidden = true; });
-  document.querySelectorAll<HTMLButtonElement>('.toggle').forEach((item) => { if (!item.classList.contains('empty')) item.textContent = '▶'; });
   saveState();
 });
 element<HTMLButtonElement>('expand-all').addEventListener('click', () => {
@@ -170,16 +169,16 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
   row.setAttribute('role', 'treeitem');
   row.dataset.nodeId = node.id;
 
-  const toggle = document.createElement('button');
-  toggle.className = `toggle ${node.childCount ? '' : 'empty'}`;
-  toggle.textContent = '▶';
-  toggle.ariaLabel = text.toggle;
-  row.append(toggle);
-
   const line = document.createElement('span');
   line.className = 'line';
-  line.textContent = node.endLine > node.line ? `${node.line}-${node.endLine}` : String(node.line);
+  line.title = node.endLine > node.line ? `${node.line}-${node.endLine}` : String(node.line);
   row.append(line);
+
+  const toggle = document.createElement('button');
+  toggle.className = `toggle ${node.childCount ? '' : 'empty'}`;
+  toggle.ariaLabel = text.toggle;
+  toggle.ariaExpanded = 'false';
+  row.append(toggle);
 
   if (node.label) {
     const label = document.createElement('span');
@@ -210,8 +209,8 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
   } else if (node.childCount) {
     const preview = document.createElement('span');
     preview.className = 'preview';
-    preview.textContent = node.preview ?? '';
-    preview.dataset.collapsed = node.preview ?? '';
+    preview.textContent = `${node.preview ?? ''}${node.trailingComma ? ',' : ''}`;
+    preview.dataset.collapsed = `${node.preview ?? ''}${node.trailingComma ? ',' : ''}`;
     preview.dataset.expanded = node.type === 'object' ? '{' : '[';
     preview.title = text.copyValue;
     preview.addEventListener('click', () => post({ type: 'copy', nodeId: node.id, mode: 'value' }));
@@ -236,6 +235,7 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
       }, { capture: true });
     }
     row.append(value);
+    if (node.trailingComma) row.append(punctuation(','));
   }
 
   const children = document.createElement('div');
@@ -247,7 +247,13 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
   const closing = document.createElement('div');
   closing.className = 'closing';
   closing.style.setProperty('--depth', String(depth));
-  closing.textContent = node.type === 'object' ? '}' : node.type === 'array' ? ']' : '';
+  const closingLine = document.createElement('span');
+  closingLine.className = 'line';
+  closingLine.title = String(node.endLine);
+  const closingBody = document.createElement('span');
+  closingBody.className = 'closing-body punctuation';
+  closingBody.textContent = `${node.type === 'object' ? '}' : node.type === 'array' ? ']' : ''}${node.trailingComma ? ',' : ''}`;
+  closing.append(closingLine, closingBody);
   closing.hidden = true;
   toggle.addEventListener('click', () => toggleNode(host, node));
   host.append(row, children);
@@ -263,7 +269,8 @@ function toggleNode(host: HTMLElement, node: ViewNode): void {
   const closing = host.querySelector<HTMLElement>(':scope > .closing');
   const willExpand = children.hidden;
   children.hidden = !willExpand;
-  toggle.textContent = willExpand ? '▼' : '▶';
+  toggle.classList.toggle('expanded', willExpand);
+  toggle.ariaExpanded = String(willExpand);
   if (preview) preview.textContent = willExpand ? preview.dataset.expanded ?? '' : preview.dataset.collapsed ?? '';
   if (closing) closing.hidden = !willExpand;
   if (willExpand) {
@@ -388,7 +395,10 @@ function restoreExpanded(root: ParentNode): void {
     const toggle = host.querySelector<HTMLButtonElement>(':scope > .row > .toggle');
     if (toggle && !toggle.classList.contains('empty')) {
       if (children?.hidden) toggle.click();
-      else toggle.textContent = '▼';
+      else {
+        toggle.classList.add('expanded');
+        toggle.ariaExpanded = 'true';
+      }
     }
   }
 }

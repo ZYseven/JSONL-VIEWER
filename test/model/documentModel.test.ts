@@ -21,6 +21,14 @@ test('keeps the JSON root container visible and expanded by default', () => {
   assert.equal(model.children(nodes[0].id).nodes[0].key, 'item');
 });
 
+test('marks every non-final child with a trailing comma', () => {
+  const model = new DocumentModel('{"first":1,"nested":{"value":2},"last":3}', 'sample.json');
+  const root = model.chunk(0, 10).nodes[0];
+  const nodes = model.children(root.id).nodes;
+  assert.deepEqual(nodes.map((node) => node.trailingComma), [true, true, false]);
+  assert.equal(model.children(nodes[1].id).nodes[0].trailingComma, false);
+});
+
 test('copies values and duplicate-key properties as JSON text', () => {
   const model = new DocumentModel('{"item":{"id":1},"item":2}', 'sample.json');
   const root = model.chunk(0, 10).nodes[0];
