@@ -1,0 +1,9 @@
+.github/**
+.vscode/**
+src/**
+test/**
+node_modules/**
+dist-test/**
+tsconfig*.json
+esbuild.js
+package-lock.json
