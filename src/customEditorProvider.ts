@@ -36,6 +36,11 @@ export class JsonlViewerProvider implements vscode.CustomTextEditorProvider {
           case 'requestChildren':
             await send({ type: 'childrenData', requestId: message.requestId, nodeId: message.nodeId, nodes: model.children(message.nodeId) });
             break;
+          case 'requestDisplayValue': {
+            const value = model.displayValue(message.nodeId);
+            if (value !== undefined) await send({ type: 'displayValue', requestId: message.requestId, nodeId: message.nodeId, value });
+            break;
+          }
           case 'findMatches':
             await send({ type: 'searchResults', requestId: message.requestId, matches: model.search(message.query) });
             break;

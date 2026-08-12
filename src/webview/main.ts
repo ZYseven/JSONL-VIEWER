@@ -13,6 +13,7 @@ const search = element<HTMLInputElement>('search');
 const searchCount = element<HTMLSpanElement>('search-count');
 const status = element<HTMLDivElement>('status');
 const persisted = vscode.getState();
+const hasPersistedState = persisted !== undefined;
 const expanded = new Set(persisted?.expanded ?? []);
 let loaded = 0;
 let done = false;
@@ -21,6 +22,8 @@ let currentMatch = -1;
 let requestSequence = 0;
 let chunkSize = 200;
 let pendingReveal = false;
+let expandAllActive = false;
+const requestedChunks = new Set<number>();
 
 search.value = persisted?.query ?? '';
 
@@ -41,6 +44,7 @@ window.addEventListener('message', (event: MessageEvent<ExtensionToWebview>) => 
       requestChunk(0);
       break;
     case 'chunkData':
+      requestedChunks.delete(message.start);
       message.nodes.forEach((node) => tree.append(renderNode(node, 0)));
       loaded = message.start + message.nodes.length;
       done = message.done;
@@ -62,6 +66,16 @@ window.addEventListener('message', (event: MessageEvent<ExtensionToWebview>) => 
       container.dataset.loaded = 'true';
       restoreExpanded(container);
       applyMatches();
+      if (expandAllActive) window.setTimeout(expandAllVisible, 0);
+      if (currentMatch >= 0) window.setTimeout(revealCurrent, 0);
+      break;
+    }
+    case 'displayValue': {
+      const value = tree.querySelector<HTMLElement>(`.row[data-node-id="${cssEscape(message.nodeId)}"] .value`);
+      if (value) {
+        value.textContent = message.value;
+        value.classList.remove('truncated');
+      }
       break;
     }
     case 'searchResults':
@@ -78,12 +92,16 @@ window.addEventListener('message', (event: MessageEvent<ExtensionToWebview>) => 
 loadMore.addEventListener('click', () => requestChunk(loaded));
 element<HTMLButtonElement>('refresh').addEventListener('click', () => post({ type: 'refresh' }));
 element<HTMLButtonElement>('collapse-all').addEventListener('click', () => {
+  expandAllActive = false;
   expanded.clear();
   document.querySelectorAll<HTMLElement>('.children').forEach((item) => { item.hidden = true; });
   document.querySelectorAll<HTMLButtonElement>('.toggle').forEach((item) => { if (!item.classList.contains('empty')) item.textContent = '▶'; });
   saveState();
 });
-element<HTMLButtonElement>('expand-all').addEventListener('click', () => expandAllVisible());
+element<HTMLButtonElement>('expand-all').addEventListener('click', () => {
+  expandAllActive = true;
+  expandAllVisible();
+});
 
 let searchTimer: number | undefined;
 search.addEventListener('input', () => {
@@ -107,6 +125,7 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
   host.className = 'node';
   host.dataset.id = node.id;
   host.dataset.depth = String(depth);
+  if (!hasPersistedState && node.defaultExpanded) expanded.add(node.id);
   const row = document.createElement('div');
   row.className = `row ${node.type === 'error' ? 'error' : ''}`;
   row.style.setProperty('--depth', String(depth));
@@ -163,6 +182,15 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
     value.textContent = node.type === 'string' ? JSON.stringify(node.value) : String(node.value);
     value.title = 'Copy value';
     value.addEventListener('click', () => post({ type: 'copy', nodeId: node.id, mode: 'value' }));
+    if (node.truncated) {
+      value.classList.add('truncated');
+      value.title = 'Click to reveal; click again to copy';
+      value.addEventListener('click', (event) => {
+        if (!value.classList.contains('truncated')) return;
+        event.stopImmediatePropagation();
+        post({ type: 'requestDisplayValue', requestId: id(), nodeId: node.id });
+      }, { capture: true });
+    }
     row.append(value);
   }
 
@@ -198,7 +226,10 @@ function expandAllVisible(): void {
     const children = host.querySelector<HTMLElement>(':scope > .children');
     if (toggle && children?.hidden && !toggle.classList.contains('empty')) toggle.click();
   }
-  if (tree.querySelectorAll('.node').length > 10_000) status.textContent = 'Expansion stopped at 10,000 visible nodes.';
+  if (tree.querySelectorAll('.node').length >= 10_000) {
+    expandAllActive = false;
+    status.textContent = 'Expansion stopped at 10,000 visible nodes.';
+  }
 }
 
 function revealCurrent(): void {
@@ -239,7 +270,8 @@ function restoreExpanded(root: ParentNode): void {
 }
 
 function requestChunk(start: number): void {
-  if (done && start > 0) return;
+  if ((done && start > 0) || requestedChunks.has(start)) return;
+  requestedChunks.add(start);
   post({ type: 'requestChunk', requestId: id(), start });
 }
 
@@ -251,6 +283,7 @@ function reset(): void {
   currentMatch = -1;
   loadMore.hidden = true;
   status.textContent = '';
+  requestedChunks.clear();
 }
 
 function saveState(): void { vscode.setState({ expanded: [...expanded], query: search.value, scrollTop: content.scrollTop }); }

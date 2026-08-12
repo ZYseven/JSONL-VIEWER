@@ -17,6 +17,8 @@ export interface ViewNode {
   duplicate?: boolean;
   children?: ViewNode[];
   error?: string;
+  truncated?: boolean;
+  defaultExpanded?: boolean;
 }
 
 export interface DocumentSummary {
@@ -109,6 +111,12 @@ export class DocumentModel {
     return rendered;
   }
 
+  displayValue(nodeId: string): string | undefined {
+    const node = this.nodes.get(nodeId);
+    if (!node || node.children.length) return undefined;
+    return node.type === 'string' ? JSON.stringify(node.value) : node.raw;
+  }
+
   private index(node: JsonNode, ancestors: string[], rootIndex: number): void {
     this.nodes.set(node.id, node);
     this.paths.set(node.id, [...ancestors, node.id]);
@@ -117,17 +125,21 @@ export class DocumentModel {
   }
 
   private toView(node: JsonNode, label?: string): ViewNode {
+    const displayValue = node.children.length ? undefined : node.value;
+    const truncated = typeof displayValue === 'string' && displayValue.length > 262_144;
     return {
       id: node.id,
       type: node.type,
       key: node.key,
       label: label ?? (node.key === undefined && node.keyOccurrence !== undefined ? `[${node.keyOccurrence}]` : undefined),
-      value: node.children.length ? undefined : node.value,
+      value: truncated ? `${displayValue.slice(0, 512)}…` : displayValue,
       preview: node.type === 'object' ? `{${node.children.length}}` : node.type === 'array' ? `[${node.children.length}]` : undefined,
       line: node.start.line,
       endLine: node.end.line,
       childCount: node.children.length,
-      duplicate: node.keyOccurrence !== undefined && node.keyOccurrence > 0
+      duplicate: node.keyOccurrence !== undefined && node.keyOccurrence > 0,
+      truncated,
+      defaultExpanded: label !== undefined && node.children.length > 0
     };
   }
 }
