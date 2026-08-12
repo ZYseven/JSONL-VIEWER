@@ -50,7 +50,7 @@ Press `F5` in VS Code to launch an Extension Development Host. Production bundle
 npm run package
 ```
 
-The extension host and Webview are bundled separately with esbuild. Parser and document-model tests use Node's built-in test runner.
+The extension host and Webview are bundled separately with esbuild. `npm test` runs parser/model unit tests, Playwright Webview tests, and an isolated VS Code Extension Host integration test.
 
 ## Performance note
 

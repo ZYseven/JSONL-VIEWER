@@ -11,15 +11,17 @@ export class JsonlViewerProvider implements vscode.CustomTextEditorProvider {
   constructor(private readonly context: vscode.ExtensionContext) {}
 
   async resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): Promise<void> {
+    const zh = vscode.env.language.toLowerCase().startsWith('zh');
     panel.webview.options = {
       enableScripts: true,
       localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'dist')]
     };
-    panel.webview.html = this.html(panel.webview);
-    let model = new DocumentModel(document.getText(), document.fileName);
+    panel.webview.html = this.html(panel.webview, zh);
+    let model = new DocumentModel(document.getText(), document.fileName, zh ? '第' : 'Line');
 
     const send = (message: ExtensionToWebview): Thenable<boolean> => panel.webview.postMessage(message);
     const sendDocument = (): void => { void send({ type: 'document', payload: model.summary() }); };
+    let changeTimer: NodeJS.Timeout | undefined;
 
     const messages = panel.webview.onDidReceiveMessage(async (message: WebviewToExtension) => {
       try {
@@ -33,9 +35,11 @@ export class JsonlViewerProvider implements vscode.CustomTextEditorProvider {
             await send({ type: 'chunkData', requestId: message.requestId, start: message.start, ...chunk });
             break;
           }
-          case 'requestChildren':
-            await send({ type: 'childrenData', requestId: message.requestId, nodeId: message.nodeId, nodes: model.children(message.nodeId) });
+          case 'requestChildren': {
+            const children = model.children(message.nodeId, message.start, CHUNK_SIZE_JSON);
+            await send({ type: 'childrenData', requestId: message.requestId, nodeId: message.nodeId, start: message.start, ...children });
             break;
+          }
           case 'requestDisplayValue': {
             const value = model.displayValue(message.nodeId);
             if (value !== undefined) await send({ type: 'displayValue', requestId: message.requestId, nodeId: message.nodeId, value });
@@ -50,7 +54,7 @@ export class JsonlViewerProvider implements vscode.CustomTextEditorProvider {
             break;
           }
           case 'refresh':
-            model = new DocumentModel(document.getText(), document.fileName);
+            model = new DocumentModel(document.getText(), document.fileName, zh ? '第' : 'Line');
             sendDocument();
             break;
         }
@@ -62,21 +66,30 @@ export class JsonlViewerProvider implements vscode.CustomTextEditorProvider {
 
     const changes = vscode.workspace.onDidChangeTextDocument((event) => {
       if (event.document.uri.toString() !== document.uri.toString()) return;
-      model = new DocumentModel(document.getText(), document.fileName);
-      sendDocument();
+      if (changeTimer) clearTimeout(changeTimer);
+      changeTimer = setTimeout(() => {
+        model = new DocumentModel(document.getText(), document.fileName, zh ? '第' : 'Line');
+        sendDocument();
+      }, 150);
     });
 
     panel.onDidDispose(() => {
       messages.dispose();
       changes.dispose();
+      if (changeTimer) clearTimeout(changeTimer);
     });
   }
 
-  private html(webview: vscode.Webview): string {
+  private html(webview: vscode.Webview, zh: boolean): string {
+    const copy = zh ? {
+      lang: 'zh-CN', search: '搜索键和值', expand: '全部展开', collapse: '全部折叠', refresh: '刷新', loadMore: '加载更多'
+    } : {
+      lang: 'en', search: 'Search keys and values', expand: 'Expand all', collapse: 'Collapse all', refresh: 'Refresh', loadMore: 'Load more'
+    };
     const nonce = nonceValue();
     const script = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview.js'));
     return `<!doctype html>
-<html lang="en">
+<html lang="${copy.lang}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -87,15 +100,15 @@ export class JsonlViewerProvider implements vscode.CustomTextEditorProvider {
 <body>
   <header class="toolbar">
     <div class="search-wrap">
-      <input id="search" type="search" placeholder="Search keys and values" aria-label="Search keys and values">
+      <input id="search" type="search" placeholder="${copy.search}" aria-label="${copy.search}">
       <span id="search-count" aria-live="polite"></span>
     </div>
-    <button id="expand-all" title="Expand all">Expand all</button>
-    <button id="collapse-all" title="Collapse all">Collapse all</button>
-    <button id="refresh" title="Refresh">Refresh</button>
+    <button id="expand-all" class="icon-button" title="${copy.expand}" aria-label="${copy.expand}">⊞</button>
+    <button id="collapse-all" class="icon-button" title="${copy.collapse}" aria-label="${copy.collapse}">⊟</button>
+    <button id="refresh" class="icon-button" title="${copy.refresh}" aria-label="${copy.refresh}">↻</button>
   </header>
   <main id="content" tabindex="0"><div id="tree" role="tree"></div></main>
-  <button id="load-more" hidden>Load more</button>
+  <button id="load-more" hidden>${copy.loadMore}</button>
   <div id="status" role="status" aria-live="polite"></div>
   <script nonce="${nonce}" src="${script}"></script>
 </body>
@@ -112,7 +125,7 @@ function styles(): string {
   return `
 :root { color-scheme: light dark; }
 * { box-sizing: border-box; }
-body { margin: 0; color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-editor-font-family); font-size: var(--vscode-editor-font-size); }
+body { height: 100vh; margin: 0; display: flex; flex-direction: column; overflow: hidden; color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-editor-font-family); font-size: var(--vscode-editor-font-size); }
 .toolbar { position: sticky; top: 0; z-index: 10; min-height: 42px; display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--vscode-panel-border); background: var(--vscode-editor-background); }
 .search-wrap { display: flex; align-items: center; flex: 1; max-width: 520px; }
 input { width: 100%; height: 28px; padding: 3px 68px 3px 8px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); outline: none; }
@@ -120,9 +133,11 @@ input:focus { border-color: var(--vscode-focusBorder); }
 #search-count { margin-left: -62px; width: 56px; text-align: right; color: var(--vscode-descriptionForeground); pointer-events: none; }
 button { min-height: 28px; padding: 3px 9px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 0; cursor: pointer; }
 button:hover { background: var(--vscode-button-secondaryHoverBackground); }
-#content { padding: 8px 0 36px; overflow: auto; }
-.node { min-width: max-content; }
-.row { display: flex; min-height: 24px; align-items: flex-start; padding: 2px 12px 2px calc(12px + var(--depth) * 18px); line-height: 20px; }
+.icon-button { width: 28px; padding: 0; font-size: 17px; line-height: 1; }
+#content { flex: 1 1 auto; min-height: 0; padding: 8px 0 36px; overflow: auto; }
+.node { min-width: 0; }
+.root-page { display: contents; }
+.row { display: flex; width: 100%; min-height: 24px; align-items: flex-start; padding: 2px 12px 2px calc(12px + var(--depth) * 18px); line-height: 20px; }
 .row:hover { background: var(--vscode-list-hoverBackground); }
 .row.match { background: var(--vscode-editor-findMatchHighlightBackground); }
 .row.current { outline: 1px solid var(--vscode-editor-findMatchBorder, var(--vscode-focusBorder)); outline-offset: -1px; }
@@ -130,7 +145,8 @@ button:hover { background: var(--vscode-button-secondaryHoverBackground); }
 .toggle:hover { background: var(--vscode-toolbar-hoverBackground); }
 .toggle.empty { visibility: hidden; }
 .line { flex: 0 0 70px; padding-right: 10px; text-align: right; color: var(--vscode-editorLineNumber-foreground); user-select: none; }
-.key, .value { cursor: copy; white-space: pre-wrap; overflow-wrap: anywhere; }
+.key, .value, .preview { min-width: 0; cursor: copy; white-space: pre-wrap; overflow-wrap: anywhere; }
+.value, .preview { flex: 1 1 auto; }
 .key { color: var(--vscode-symbolIcon-propertyForeground, var(--vscode-editor-foreground)); }
 .string { color: var(--vscode-debugTokenExpression-string, #608b4e); }
 .number { color: var(--vscode-debugTokenExpression-number, #b5cea8); }
@@ -139,6 +155,10 @@ button:hover { background: var(--vscode-button-secondaryHoverBackground); }
 .duplicate { margin-left: 6px; color: var(--vscode-editorWarning-foreground); font-size: 11px; }
 .error { color: var(--vscode-errorForeground); }
 .children[hidden] { display: none; }
+.children-page { display: contents; }
+.closing { min-height: 20px; padding-left: calc(30px + var(--depth) * 18px); color: var(--vscode-descriptionForeground); }
+.closing[hidden] { display: none; }
+.children-more { margin: 3px 0 3px 48px; }
 #load-more { display: block; margin: 4px auto 24px; }
 #load-more[hidden] { display: none; }
 #status { position: fixed; right: 10px; bottom: 8px; color: var(--vscode-descriptionForeground); background: var(--vscode-editor-background); }

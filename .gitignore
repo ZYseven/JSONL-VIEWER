@@ -3,3 +3,8 @@ dist/
 dist-test/
 *.vsix
 .DS_Store
+.npm-cache/
+.vscode-test/
+.vscode-test-data/
+playwright-report/
+test-results/

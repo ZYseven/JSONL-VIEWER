@@ -5,7 +5,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(vscode.window.registerCustomEditorProvider(
     JsonlViewerProvider.viewType,
     new JsonlViewerProvider(context),
-    { webviewOptions: { retainContextWhenHidden: true }, supportsMultipleEditorsPerDocument: true }
+    { supportsMultipleEditorsPerDocument: true }
   ));
 }
 

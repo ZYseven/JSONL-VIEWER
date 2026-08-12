@@ -1,0 +1,5 @@
+{
+  "displayName": "JSONL Viewer",
+  "description": "A fast, read-only tree viewer for JSON, JSONL, and NDJSON files.",
+  "editor.displayName": "JSONL Viewer"
+}

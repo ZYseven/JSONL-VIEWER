@@ -1,7 +1,7 @@
 {
   "name": "jsonl-viewer",
-  "displayName": "JSONL Viewer",
-  "description": "A fast, read-only tree viewer for JSON, JSONL, and NDJSON files.",
+  "displayName": "%displayName%",
+  "description": "%description%",
   "version": "0.1.0",
   "publisher": "ZYseven",
   "license": "MIT",
@@ -16,18 +16,27 @@
   "engines": {
     "vscode": "^1.92.0"
   },
-  "categories": ["Visualization", "Other"],
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
     "customEditors": [
       {
         "viewType": "jsonlViewer.viewer",
-        "displayName": "JSONL Viewer",
+        "displayName": "%editor.displayName%",
         "selector": [
-          { "filenamePattern": "*.json" },
-          { "filenamePattern": "*.jsonl" },
-          { "filenamePattern": "*.ndjson" }
+          {
+            "filenamePattern": "*.json"
+          },
+          {
+            "filenamePattern": "*.jsonl"
+          },
+          {
+            "filenamePattern": "*.ndjson"
+          }
         ],
         "priority": "option"
       }
@@ -39,13 +48,18 @@
     "compile": "node esbuild.js",
     "watch": "node esbuild.js --watch",
     "package": "node esbuild.js --production",
-    "test": "npm run check && npm run test:compile && node --test dist-test/test/**/*.test.js",
-    "test:compile": "tsc -p tsconfig.test.json"
+    "test": "npm run test:unit && npm run test:webview && npm run test:extension",
+    "test:unit": "npm run check && npm run test:compile && node --test dist-test/test/**/*.test.js",
+    "test:compile": "tsc -p tsconfig.test.json",
+    "test:webview": "npm run package && playwright test",
+    "test:extension": "npm run package && npm run test:compile && node test/runExtensionTests.mjs"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^22.10.0",
     "@types/vscode": "^1.92.0",
-    "esbuild": "^0.24.0",
+    "@vscode/test-electron": "^3.1.0",
+    "esbuild": "^0.28.2",
     "typescript": "^5.7.2"
   }
 }

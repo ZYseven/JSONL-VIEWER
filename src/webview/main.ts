@@ -6,6 +6,16 @@ declare function acquireVsCodeApi<T>(): { postMessage(message: WebviewToExtensio
 interface ViewerState { expanded: string[]; query: string; scrollTop: number; }
 
 const vscode = acquireVsCodeApi<ViewerState>();
+const zh = document.documentElement.lang.toLowerCase().startsWith('zh');
+const text = zh ? {
+  noValues: '未找到 JSON 值。', copyProperty: '复制包含键的 JSON 属性', copyValue: '复制值',
+  revealValue: '点击展开完整值，再次点击复制', toggle: '展开或折叠节点', loadMore: '加载更多',
+  expandLimit: '已在 10,000 个可见节点处停止展开。'
+} : {
+  noValues: 'No JSON values found.', copyProperty: 'Copy this property as JSON', copyValue: 'Copy value',
+  revealValue: 'Click to reveal; click again to copy', toggle: 'Toggle node', loadMore: 'Load more',
+  expandLimit: 'Expansion stopped at 10,000 visible nodes.'
+};
 const tree = element<HTMLDivElement>('tree');
 const content = element<HTMLElement>('content');
 const loadMore = element<HTMLButtonElement>('load-more');
@@ -16,6 +26,7 @@ const persisted = vscode.getState();
 const hasPersistedState = persisted !== undefined;
 const expanded = new Set(persisted?.expanded ?? []);
 let loaded = 0;
+let totalRoots = 0;
 let done = false;
 let matches: SearchMatch[] = [];
 let currentMatch = -1;
@@ -23,7 +34,14 @@ let requestSequence = 0;
 let chunkSize = 200;
 let pendingReveal = false;
 let expandAllActive = false;
+let restoreScrollTop = persisted?.scrollTop ?? 0;
 const requestedChunks = new Set<number>();
+const requestedChildren = new Set<string>();
+const loadObserver = new IntersectionObserver((entries) => {
+  for (const entry of entries) {
+    if (entry.isIntersecting) (entry.target as HTMLButtonElement).click();
+  }
+}, { root: content, rootMargin: '160px' });
 
 search.value = persisted?.query ?? '';
 
@@ -31,27 +49,37 @@ window.addEventListener('message', (event: MessageEvent<ExtensionToWebview>) => 
   const message = event.data;
   switch (message.type) {
     case 'document':
+      if (tree.childElementCount > 0) restoreScrollTop = content.scrollTop;
       reset();
       chunkSize = message.payload.kind === 'jsonl' ? 200 : 100;
+      totalRoots = message.payload.total;
       if (message.payload.issue) {
         tree.append(emptyState(`${message.payload.issue.message} at ${message.payload.issue.line}:${message.payload.issue.column}`));
         return;
       }
       if (message.payload.total === 0) {
-        tree.append(emptyState('No JSON values found.'));
+        tree.append(emptyState(text.noValues));
         return;
       }
       requestChunk(0);
+      if (search.value.trim()) post({ type: 'findMatches', requestId: id(), query: search.value });
       break;
     case 'chunkData':
       requestedChunks.delete(message.start);
-      message.nodes.forEach((node) => tree.append(renderNode(node, 0)));
-      loaded = message.start + message.nodes.length;
-      done = message.done;
+      const rootPage = document.createElement('div');
+      rootPage.className = 'root-page';
+      rootPage.dataset.start = String(message.start);
+      rootPage.dataset.count = String(message.nodes.length);
+      rootPage.dataset.done = String(message.done);
+      message.nodes.forEach((node) => rootPage.append(renderNode(node, 0)));
+      const nextRootPage = Array.from(tree.querySelectorAll<HTMLElement>(':scope > .root-page'))
+        .find((item) => Number(item.dataset.start) > message.start);
+      tree.insertBefore(rootPage, nextRootPage ?? null);
+      updateRootProgress();
       loadMore.hidden = done;
       restoreExpanded(tree);
       applyMatches();
-      if (persisted?.scrollTop && message.start === 0) content.scrollTop = persisted.scrollTop;
+      if (restoreScrollTop && message.start === 0) content.scrollTop = restoreScrollTop;
       if (pendingReveal) {
         pendingReveal = false;
         revealCurrent();
@@ -62,8 +90,18 @@ window.addEventListener('message', (event: MessageEvent<ExtensionToWebview>) => 
       const container = host?.querySelector<HTMLElement>(':scope > .children');
       if (!container) return;
       const depth = Number(host?.dataset.depth ?? 0) + 1;
-      message.nodes.forEach((node) => container.append(renderNode(node, depth)));
-      container.dataset.loaded = 'true';
+      requestedChildren.delete(`${message.nodeId}:${message.start}`);
+      const page = document.createElement('div');
+      page.className = 'children-page';
+      page.dataset.start = String(message.start);
+      page.dataset.count = String(message.nodes.length);
+      page.dataset.done = String(message.done);
+      message.nodes.forEach((node) => page.append(renderNode(node, depth)));
+      const nextPage = Array.from(container.querySelectorAll<HTMLElement>(':scope > .children-page'))
+        .find((item) => Number(item.dataset.start) > message.start);
+      container.insertBefore(page, nextPage ?? null);
+      updateChildProgress(container);
+      updateChildrenLoadButton(host!, container, message.nodeId);
       restoreExpanded(container);
       applyMatches();
       if (expandAllActive) window.setTimeout(expandAllVisible, 0);
@@ -134,8 +172,8 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
 
   const toggle = document.createElement('button');
   toggle.className = `toggle ${node.childCount ? '' : 'empty'}`;
-  toggle.textContent = expanded.has(node.id) ? '▼' : '▶';
-  toggle.ariaLabel = 'Toggle node';
+  toggle.textContent = '▶';
+  toggle.ariaLabel = text.toggle;
   row.append(toggle);
 
   const line = document.createElement('span');
@@ -153,7 +191,7 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
     const key = document.createElement('span');
     key.className = 'key';
     key.textContent = JSON.stringify(node.key);
-    key.title = 'Copy this property as JSON';
+    key.title = text.copyProperty;
     key.addEventListener('click', () => post({ type: 'copy', nodeId: node.id, mode: 'keyObject' }));
     row.append(key);
     if (node.duplicate) {
@@ -173,18 +211,24 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
     const preview = document.createElement('span');
     preview.className = 'preview';
     preview.textContent = node.preview ?? '';
-    preview.title = 'Copy value';
+    preview.dataset.collapsed = node.preview ?? '';
+    preview.dataset.expanded = node.type === 'object' ? '{' : '[';
+    preview.title = text.copyValue;
     preview.addEventListener('click', () => post({ type: 'copy', nodeId: node.id, mode: 'value' }));
     row.append(preview);
   } else {
     const value = document.createElement('span');
     value.className = `value ${node.type}`;
-    value.textContent = node.type === 'string' ? JSON.stringify(node.value) : String(node.value);
-    value.title = 'Copy value';
+    value.textContent = node.type === 'string'
+      ? JSON.stringify(node.value)
+      : node.type === 'object' || node.type === 'array'
+        ? node.preview ?? (node.type === 'object' ? '{}' : '[]')
+        : String(node.value);
+    value.title = text.copyValue;
     value.addEventListener('click', () => post({ type: 'copy', nodeId: node.id, mode: 'value' }));
     if (node.truncated) {
       value.classList.add('truncated');
-      value.title = 'Click to reveal; click again to copy';
+      value.title = text.revealValue;
       value.addEventListener('click', (event) => {
         if (!value.classList.contains('truncated')) return;
         event.stopImmediatePropagation();
@@ -196,10 +240,18 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
 
   const children = document.createElement('div');
   children.className = 'children';
-  children.hidden = !expanded.has(node.id);
+  // Expanded ids describe desired state. Keep new DOM closed so restoreExpanded
+  // goes through toggleNode and requests children before revealing the group.
+  children.hidden = true;
   children.setAttribute('role', 'group');
+  const closing = document.createElement('div');
+  closing.className = 'closing';
+  closing.style.setProperty('--depth', String(depth));
+  closing.textContent = node.type === 'object' ? '}' : node.type === 'array' ? ']' : '';
+  closing.hidden = true;
   toggle.addEventListener('click', () => toggleNode(host, node));
   host.append(row, children);
+  if (node.type === 'object' || node.type === 'array') host.append(closing);
   return host;
 }
 
@@ -207,12 +259,16 @@ function toggleNode(host: HTMLElement, node: ViewNode): void {
   if (!node.childCount) return;
   const children = host.querySelector<HTMLElement>(':scope > .children')!;
   const toggle = host.querySelector<HTMLButtonElement>(':scope > .row > .toggle')!;
+  const preview = host.querySelector<HTMLElement>(':scope > .row > .preview');
+  const closing = host.querySelector<HTMLElement>(':scope > .closing');
   const willExpand = children.hidden;
   children.hidden = !willExpand;
   toggle.textContent = willExpand ? '▼' : '▶';
+  if (preview) preview.textContent = willExpand ? preview.dataset.expanded ?? '' : preview.dataset.collapsed ?? '';
+  if (closing) closing.hidden = !willExpand;
   if (willExpand) {
     expanded.add(node.id);
-    if (!children.dataset.loaded) post({ type: 'requestChildren', requestId: id(), nodeId: node.id });
+    if (!Number(children.dataset.loaded ?? 0)) requestChildren(node.id, children, 0);
   } else {
     expanded.delete(node.id);
   }
@@ -228,7 +284,7 @@ function expandAllVisible(): void {
   }
   if (tree.querySelectorAll('.node').length >= 10_000) {
     expandAllActive = false;
-    status.textContent = 'Expansion stopped at 10,000 visible nodes.';
+    status.textContent = text.expandLimit;
   }
 }
 
@@ -238,16 +294,84 @@ function revealCurrent(): void {
   const match = matches[currentMatch];
   if (!tree.querySelector(`.node[data-id="${cssEscape(match.pathIds[0] ?? match.nodeId)}"]`)) {
     pendingReveal = true;
-    requestChunk(loaded);
+    requestChunk(Math.floor(match.rootIndex / chunkSize) * chunkSize);
     return;
   }
   for (const idValue of match.pathIds) expanded.add(idValue);
+  ensureMatchPathLoaded(match);
   restoreExpanded(tree);
   const row = tree.querySelector<HTMLElement>(`.row[data-node-id="${cssEscape(match.nodeId)}"]`);
   row?.classList.add('current');
   row?.scrollIntoView({ block: 'center' });
   searchCount.textContent = `${currentMatch + 1}/${matches.length}`;
   saveState();
+}
+
+function ensureMatchPathLoaded(match: SearchMatch): void {
+  for (let index = 1; index < match.pathIds.length; index += 1) {
+    const parentId = match.pathIds[index - 1];
+    const parent = tree.querySelector<HTMLElement>(`.node[data-id="${cssEscape(parentId)}"]`);
+    const container = parent?.querySelector<HTMLElement>(':scope > .children');
+    if (!container) return;
+    const targetIndex = match.pathIndexes[index] ?? 0;
+    const loadedCount = Number(container.dataset.loaded ?? 0);
+    if (loadedCount <= targetIndex) {
+      const pageStart = Math.floor(targetIndex / 100) * 100;
+      requestChildren(parentId, container, pageStart);
+      return;
+    }
+  }
+}
+
+function requestChildren(nodeId: string, container: HTMLElement, start: number): void {
+  if (container.querySelector(`:scope > .children-page[data-start="${start}"]`)) return;
+  const key = `${nodeId}:${start}`;
+  if (requestedChildren.has(key)) return;
+  requestedChildren.add(key);
+  post({ type: 'requestChildren', requestId: id(), nodeId, start });
+}
+
+function updateChildrenLoadButton(host: HTMLElement, container: HTMLElement, nodeId: string): void {
+  const previous = container.querySelector<HTMLButtonElement>(':scope > .children-more');
+  if (previous) {
+    loadObserver.unobserve(previous);
+    previous.remove();
+  }
+  if (container.dataset.done === 'true') return;
+  const button = document.createElement('button');
+  button.className = 'children-more';
+  button.textContent = text.loadMore;
+  button.addEventListener('click', () => requestChildren(nodeId, container, Number(container.dataset.loaded ?? 0)));
+  container.append(button);
+  loadObserver.observe(button);
+}
+
+function updateRootProgress(): void {
+  let contiguous = 0;
+  let reachedEnd = false;
+  const pages = Array.from(tree.querySelectorAll<HTMLElement>(':scope > .root-page'))
+    .sort((left, right) => Number(left.dataset.start) - Number(right.dataset.start));
+  for (const page of pages) {
+    if (Number(page.dataset.start) !== contiguous) break;
+    contiguous += Number(page.dataset.count ?? 0);
+    reachedEnd = page.dataset.done === 'true';
+  }
+  loaded = contiguous;
+  done = reachedEnd || loaded >= totalRoots;
+}
+
+function updateChildProgress(container: HTMLElement): void {
+  let contiguous = 0;
+  let reachedEnd = false;
+  const pages = Array.from(container.querySelectorAll<HTMLElement>(':scope > .children-page'))
+    .sort((left, right) => Number(left.dataset.start) - Number(right.dataset.start));
+  for (const page of pages) {
+    if (Number(page.dataset.start) !== contiguous) break;
+    contiguous += Number(page.dataset.count ?? 0);
+    reachedEnd = page.dataset.done === 'true';
+  }
+  container.dataset.loaded = String(contiguous);
+  container.dataset.done = String(reachedEnd);
 }
 
 function applyMatches(): void {
@@ -271,6 +395,7 @@ function restoreExpanded(root: ParentNode): void {
 
 function requestChunk(start: number): void {
   if ((done && start > 0) || requestedChunks.has(start)) return;
+  if (tree.querySelector(`:scope > .root-page[data-start="${start}"]`)) return;
   requestedChunks.add(start);
   post({ type: 'requestChunk', requestId: id(), start });
 }
@@ -278,12 +403,14 @@ function requestChunk(start: number): void {
 function reset(): void {
   tree.replaceChildren();
   loaded = 0;
+  totalRoots = 0;
   done = false;
   matches = [];
   currentMatch = -1;
   loadMore.hidden = true;
   status.textContent = '';
   requestedChunks.clear();
+  requestedChildren.clear();
 }
 
 function saveState(): void { vscode.setState({ expanded: [...expanded], query: search.value, scrollTop: content.scrollTop }); }
