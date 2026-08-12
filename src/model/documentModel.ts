@@ -44,7 +44,6 @@ interface IndexedJsonlRecord {
 
 export class DocumentModel {
   private static readonly jsonlRootId = '$jsonl';
-  private static readonly jsonlRecordsId = '$jsonl/records';
   readonly kind: DocumentKind;
   readonly issue?: ParseIssue;
   private readonly roots: JsonNode[] = [];
@@ -90,9 +89,6 @@ export class DocumentModel {
 
   children(nodeId: string, start = 0, size = 100): { nodes: ViewNode[]; done: boolean } {
     if (this.kind === 'jsonl' && nodeId === DocumentModel.jsonlRootId) {
-      return start > 0 ? { nodes: [], done: true } : { nodes: [this.jsonlRecordsView()], done: true };
-    }
-    if (this.kind === 'jsonl' && nodeId === DocumentModel.jsonlRecordsId) {
       const items = this.records.slice(start, start + size).map((record, localIndex) => {
         const recordIndex = start + localIndex;
         try {
@@ -137,16 +133,16 @@ export class DocumentModel {
             node,
             normalized,
             0,
-            [DocumentModel.jsonlRootId, DocumentModel.jsonlRecordsId],
-            [0, 0],
+            [DocumentModel.jsonlRootId],
+            [0],
             index,
             recordMatches
           );
           if (recordMatches.length) {
             if (!this.nodes.has(record.id)) this.index(
               node,
-              [DocumentModel.jsonlRootId, DocumentModel.jsonlRecordsId],
-              [0, 0],
+              [DocumentModel.jsonlRootId],
+              [0],
               0,
               index
             );
@@ -174,10 +170,7 @@ export class DocumentModel {
   }
 
   copy(nodeId: string, mode: 'keyObject' | 'value'): string | undefined {
-    if (this.kind === 'jsonl' && nodeId === DocumentModel.jsonlRecordsId) return this.serializeJsonlArray();
-    if (this.kind === 'jsonl' && nodeId === DocumentModel.jsonlRootId) {
-      return `{\n${indentMultiline(this.serializeJsonlArray(), 1)}\n}`;
-    }
+    if (this.kind === 'jsonl' && nodeId === DocumentModel.jsonlRootId) return this.serializeJsonlArray();
     const node = this.nodes.get(nodeId);
     if (!node) return undefined;
     if (mode === 'keyObject' && node.key !== undefined) {
@@ -203,8 +196,8 @@ export class DocumentModel {
     const node = parseJson(raw, { lineOffset: record.line - 1, idPrefix: record.id });
     this.index(
       node,
-      [DocumentModel.jsonlRootId, DocumentModel.jsonlRecordsId],
-      [0, 0],
+      [DocumentModel.jsonlRootId],
+      [0],
       0,
       rootIndex
     );
@@ -216,20 +209,6 @@ export class DocumentModel {
     const lastLine = this.records[this.records.length - 1]?.line ?? firstLine;
     return {
       id: DocumentModel.jsonlRootId,
-      type: 'object',
-      preview: '{1}',
-      line: firstLine,
-      endLine: lastLine,
-      childCount: 1,
-      defaultExpanded: true
-    };
-  }
-
-  private jsonlRecordsView(): ViewNode {
-    const firstLine = this.records[0]?.line ?? 1;
-    const lastLine = this.records[this.records.length - 1]?.line ?? firstLine;
-    return {
-      id: DocumentModel.jsonlRecordsId,
       type: 'array',
       preview: `[${this.records.length}]`,
       line: firstLine,
@@ -274,7 +253,7 @@ export class DocumentModel {
       childCount: node.children.length,
       duplicate: node.keyOccurrence !== undefined && node.keyOccurrence > 0,
       truncated,
-      defaultExpanded: node.children.length > 0 && (label !== undefined || node.key === undefined),
+      defaultExpanded: node.children.length > 0,
       trailingComma
     };
   }

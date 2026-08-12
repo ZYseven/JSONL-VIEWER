@@ -5,6 +5,7 @@ import test from 'node:test';
 
 interface Manifest {
   displayName: string;
+  extensionKind: string[];
   contributes: {
     configuration: { properties: Record<string, { default: number }> };
     customEditors: Array<{
@@ -18,7 +19,8 @@ interface Manifest {
 test('registers an optional custom editor for supported extensions', () => {
   const manifest = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as Manifest;
   assert.equal(manifest.displayName, 'json viewer');
-  assert.equal(manifest.contributes.configuration.properties['jsonViewer.fontSize'].default, 18);
+  assert.deepEqual(manifest.extensionKind, ['workspace']);
+  assert.equal(manifest.contributes.configuration.properties['jsonViewer.fontSize'].default, 0);
   const editor = manifest.contributes.customEditors[0];
   assert.equal(editor.displayName, 'json viewer');
   assert.equal(editor.priority, 'option');

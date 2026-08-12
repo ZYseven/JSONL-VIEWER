@@ -67,7 +67,8 @@ window.addEventListener('message', (event: MessageEvent<ExtensionToWebview>) => 
       if (search.value.trim()) post({ type: 'findMatches', requestId: id(), query: search.value });
       break;
     case 'settings':
-      document.documentElement.style.setProperty('--viewer-font-size', `${message.fontSize}px`);
+      if (message.fontSize > 0) document.documentElement.style.setProperty('--viewer-font-size', `${message.fontSize}px`);
+      else document.documentElement.style.removeProperty('--viewer-font-size');
       break;
     case 'chunkData':
       requestedChunks.delete(message.start);
@@ -182,12 +183,18 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
   host.className = 'node';
   host.dataset.id = node.id;
   host.dataset.depth = String(depth);
-  if (!hasPersistedState && node.defaultExpanded) expanded.add(node.id);
+  if (node.defaultExpanded) expanded.add(node.id);
   const row = document.createElement('div');
   row.className = `row ${node.type === 'error' ? 'error' : ''}`;
   row.style.setProperty('--depth', String(depth));
   row.setAttribute('role', 'treeitem');
   row.dataset.nodeId = node.id;
+
+  const line = document.createElement('span');
+  line.className = 'line';
+  line.textContent = String(node.line);
+  line.ariaHidden = 'true';
+  row.append(line);
 
   const toggle = document.createElement('button');
   toggle.className = `toggle ${node.childCount ? '' : 'empty'}`;
@@ -229,7 +236,7 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
     row.append(error);
   } else if (node.childCount) {
     const preview = document.createElement('span');
-    preview.className = `preview bracket depth-${depth % 3}`;
+    preview.className = `preview bracket depth-${depth % 6}`;
     preview.textContent = `${node.preview ?? ''}${node.trailingComma ? ',' : ''}`;
     preview.dataset.collapsed = `${node.preview ?? ''}${node.trailingComma ? ',' : ''}`;
     preview.dataset.expanded = node.type === 'object' ? '{' : '[';
@@ -275,7 +282,12 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
   closing.className = 'closing';
   closing.style.setProperty('--depth', String(depth));
   const closingBody = document.createElement('span');
-  closingBody.className = `closing-body bracket depth-${depth % 3}`;
+  closingBody.className = `closing-body bracket depth-${depth % 6}`;
+  const closingLine = document.createElement('span');
+  closingLine.className = 'line';
+  closingLine.textContent = String(node.endLine);
+  closingLine.ariaHidden = 'true';
+  closing.append(closingLine);
   closingBody.textContent = `${node.type === 'object' ? '}' : node.type === 'array' ? ']' : ''}${node.trailingComma ? ',' : ''}`;
   closing.append(closingBody);
   closing.hidden = true;

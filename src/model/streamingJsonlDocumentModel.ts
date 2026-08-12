@@ -12,7 +12,6 @@ interface StreamRecord {
 /** Incremental JSONL model used when retaining and indexing the whole file is too expensive. */
 export class StreamingJsonlDocumentModel {
   private static readonly rootId = '$jsonl';
-  private static readonly recordsId = '$jsonl/records';
   readonly kind = 'jsonl' as const;
   private readonly records: StreamRecord[] = [];
   private readonly nodes = new Map<string, JsonNode>();
@@ -49,9 +48,6 @@ export class StreamingJsonlDocumentModel {
 
   async children(nodeId: string, start = 0, size = 100): Promise<{ nodes: ViewNode[]; done: boolean }> {
     if (nodeId === StreamingJsonlDocumentModel.rootId) {
-      return start > 0 ? { nodes: [], done: true } : { nodes: [this.recordsView()], done: true };
-    }
-    if (nodeId === StreamingJsonlDocumentModel.recordsId) {
       await this.ensureRecords(start + size);
       const items = this.records.slice(start, start + size).map((record, localIndex) => {
         const recordIndex = start + localIndex;
@@ -183,7 +179,7 @@ export class StreamingJsonlDocumentModel {
     const cached = this.nodes.get(record.id);
     if (cached) return cached;
     const node = parseJson(record.raw, { lineOffset: record.line - 1, idPrefix: record.id });
-    this.index(node, [StreamingJsonlDocumentModel.rootId, StreamingJsonlDocumentModel.recordsId], [0, 0], recordIndex);
+    this.index(node, [StreamingJsonlDocumentModel.rootId], [0], recordIndex);
     return node;
   }
 
@@ -197,18 +193,6 @@ export class StreamingJsonlDocumentModel {
   private rootView(): ViewNode {
     return {
       id: StreamingJsonlDocumentModel.rootId,
-      type: 'object',
-      preview: '{1}',
-      line: this.records[0]?.line ?? 1,
-      endLine: this.records.at(-1)?.line ?? 1,
-      childCount: 1,
-      defaultExpanded: true
-    };
-  }
-
-  private recordsView(): ViewNode {
-    return {
-      id: StreamingJsonlDocumentModel.recordsId,
       type: 'array',
       preview: this.eof ? `[${this.records.length}]` : `[${this.records.length}+]`,
       line: this.records[0]?.line ?? 1,
@@ -232,7 +216,7 @@ export class StreamingJsonlDocumentModel {
       childCount: node.children.length,
       duplicate: node.keyOccurrence !== undefined && node.keyOccurrence > 0,
       truncated,
-      defaultExpanded: node.children.length > 0 && node.key === undefined,
+      defaultExpanded: node.children.length > 0,
       trailingComma
     };
   }

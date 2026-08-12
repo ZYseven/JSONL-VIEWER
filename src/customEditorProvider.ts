@@ -68,7 +68,8 @@ export class JsonlViewerProvider implements vscode.CustomReadonlyEditorProvider<
             break;
           }
           case 'requestChildren': {
-            const children = await model!.children(message.nodeId, message.start, CHUNK_SIZE_JSON);
+            const size = model!.kind === 'jsonl' && message.nodeId === '$jsonl' ? CHUNK_SIZE_JSONL : CHUNK_SIZE_JSON;
+            const children = await model!.children(message.nodeId, message.start, size);
             await send({ type: 'childrenData', requestId: message.requestId, nodeId: message.nodeId, start: message.start, ...children });
             break;
           }
@@ -113,7 +114,7 @@ export class JsonlViewerProvider implements vscode.CustomReadonlyEditorProvider<
   }
 
   private async loadModel(uri: vscode.Uri, signal: AbortSignal): Promise<ViewerModel> {
-    if (uri.scheme === 'file' && /\.(jsonl|ndjson)$/i.test(uri.path)) {
+    if ((uri.scheme === 'file' || uri.scheme === 'vscode-remote') && /\.(jsonl|ndjson)$/i.test(uri.path)) {
       const metadata = await stat(uri.fsPath);
       if (signal.aborted) throw abortError();
       if (metadata.size >= STREAMING_JSONL_THRESHOLD) {
@@ -178,8 +179,8 @@ export class JsonlViewerProvider implements vscode.CustomReadonlyEditorProvider<
 }
 
 function fontSize(): number {
-  const configured = vscode.workspace.getConfiguration('jsonViewer').get<number>('fontSize', 18);
-  return Math.min(24, Math.max(10, configured));
+  const configured = vscode.workspace.getConfiguration('jsonViewer').get<number>('fontSize', 0);
+  return configured === 0 ? 0 : Math.min(32, Math.max(8, configured));
 }
 
 function isAbortError(error: unknown): boolean {
@@ -199,38 +200,41 @@ function nonceValue(): string {
 
 function styles(): string {
   return `
-:root { color-scheme: light dark; --viewer-font-size: 18px; --viewer-line-height: 1.55em; --viewer-indent: 20px; --viewer-padding: 28px; --bracket-0: var(--vscode-editorBracketHighlight-foreground1, #ffd700); --bracket-1: var(--vscode-editorBracketHighlight-foreground2, #da70d6); --bracket-2: var(--vscode-editorBracketHighlight-foreground3, #179fff); }
+:root { color-scheme: light dark; --viewer-font-size: var(--vscode-editor-font-size, 14px); --viewer-line-height: calc(var(--vscode-editor-font-size, 14px) * 1.5); --viewer-indent: 18px; --viewer-padding: 12px; --viewer-gutter: 56px; --bracket-0: var(--vscode-editorBracketHighlight-foreground1, var(--vscode-editor-foreground)); --bracket-1: var(--vscode-editorBracketHighlight-foreground2, var(--vscode-editor-foreground)); --bracket-2: var(--vscode-editorBracketHighlight-foreground3, var(--vscode-editor-foreground)); --bracket-3: var(--vscode-editorBracketHighlight-foreground4, var(--vscode-editor-foreground)); --bracket-4: var(--vscode-editorBracketHighlight-foreground5, var(--vscode-editor-foreground)); --bracket-5: var(--vscode-editorBracketHighlight-foreground6, var(--vscode-editor-foreground)); }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
-body { margin: 0; overflow: hidden; color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-font-family); font-size: var(--viewer-font-size); font-weight: normal; }
+body { margin: 0; overflow: hidden; color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-editor-font-family, monospace); font-size: var(--viewer-font-size); font-weight: var(--vscode-editor-font-weight, normal); }
 button, input { font: inherit; }
 button { color: var(--vscode-icon-foreground); border: 0; cursor: pointer; }
 #content { height: 100%; padding: 18px 0 48px; overflow: auto; scrollbar-color: var(--vscode-scrollbarSlider-background) transparent; }
 #tree { min-width: max-content; width: 100%; }
 .node { min-width: max-content; }
 .root-page, .children-page { display: contents; }
-.row, .closing { position: relative; display: flex; min-width: max-content; min-height: var(--viewer-line-height); align-items: flex-start; padding: 0 28px 0 calc(var(--viewer-padding) + var(--depth) * var(--viewer-indent)); line-height: var(--viewer-line-height); }
+.row, .closing { position: relative; display: flex; min-width: max-content; min-height: var(--viewer-line-height); align-items: flex-start; padding: 0 28px 0 calc(var(--viewer-padding) + var(--viewer-gutter) + var(--depth) * var(--viewer-indent)); line-height: var(--viewer-line-height); }
 .row.match { background: color-mix(in srgb, var(--vscode-editor-findMatchHighlightBackground) 60%, transparent); }
 .row.current { outline: 1px solid var(--vscode-editor-findMatchBorder, var(--vscode-focusBorder)); outline-offset: -1px; }
-.toggle { position: relative; flex: 0 0 24px; width: 24px; height: var(--viewer-line-height); min-height: var(--viewer-line-height); margin-left: -28px; padding: 0; background: transparent; border-radius: 3px; }
+.line { position: absolute; left: var(--viewer-padding); width: var(--viewer-gutter); padding-right: 14px; color: var(--vscode-editorLineNumber-foreground, var(--vscode-editorLineNumber-activeForeground)); text-align: right; user-select: none; }
+.toggle { position: relative; flex: 0 0 18px; width: 18px; height: var(--viewer-line-height); min-height: var(--viewer-line-height); margin-left: -18px; padding: 0; background: transparent; border-radius: 3px; }
 .toggle:hover { background: var(--vscode-toolbar-hoverBackground); }
-.toggle::before { content: ''; position: absolute; left: 8px; top: calc(50% - 5px); width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 7px solid currentColor; transform-origin: 3px 5px; transition: transform 120ms ease; }
+.toggle::before { content: ''; position: absolute; left: 6px; top: calc(50% - 4px); width: 0; height: 0; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 6px solid currentColor; transform-origin: 3px 4px; transition: transform 120ms ease; }
 .toggle.expanded::before { transform: rotate(90deg); }
 .toggle.empty { visibility: hidden; }
-.line { display: none; }
 .key, .value, .preview { display: inline-block; margin: 0 -3px; padding: 0 3px; border-radius: 4px; cursor: pointer; white-space: pre; transition: background-color 100ms ease; }
 .key:hover, .value:hover, .preview:hover { background: var(--vscode-toolbar-hoverBackground); }
 .key:focus-visible, .value:focus-visible, .preview:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
-.key { color: var(--vscode-symbolIcon-propertyForeground, var(--vscode-editor-foreground)); font-weight: 600; }
-.string { color: var(--vscode-debugTokenExpression-string, #608b4e); font-weight: 600; }
-.number { color: var(--vscode-debugTokenExpression-number, #b5cea8); }
-.boolean, .null { color: var(--vscode-debugTokenExpression-boolean, #569cd6); font-weight: 600; }
+.key { color: var(--vscode-debugTokenExpression-name, var(--vscode-symbolIcon-propertyForeground, var(--vscode-editor-foreground))); font-weight: normal; }
+.string { color: var(--vscode-debugTokenExpression-string, var(--vscode-terminal-ansiRed)); font-weight: normal; }
+.number { color: var(--vscode-debugTokenExpression-number, var(--vscode-terminal-ansiGreen)); }
+.boolean, .null { color: var(--vscode-debugTokenExpression-boolean, var(--vscode-terminal-ansiBlue)); font-weight: normal; }
 .punctuation { color: var(--vscode-editor-foreground); }
 .preview { color: var(--vscode-descriptionForeground); }
 .bracket { font-weight: 600; }
 .bracket.depth-0 { color: var(--bracket-0); }
 .bracket.depth-1 { color: var(--bracket-1); }
 .bracket.depth-2 { color: var(--bracket-2); }
+.bracket.depth-3 { color: var(--bracket-3); }
+.bracket.depth-4 { color: var(--bracket-4); }
+.bracket.depth-5 { color: var(--bracket-5); }
 .duplicate { margin-left: 6px; color: var(--vscode-editorWarning-foreground); font-size: .85em; }
 .error { color: var(--vscode-errorForeground); }
 .children[hidden], .closing[hidden], #load-more[hidden], .search-panel[hidden] { display: none; }
@@ -238,7 +242,7 @@ button { color: var(--vscode-icon-foreground); border: 0; cursor: pointer; }
 .children-more, #load-more { min-height: 26px; padding: 2px 10px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border-radius: 3px; }
 .children-more:hover, #load-more:hover { background: var(--vscode-button-secondaryHoverBackground); }
 .children-more { margin: 4px 0 4px calc(var(--viewer-padding) + 18px); }
-#load-more { margin: 10px 0 0 var(--viewer-padding); }
+#load-more { margin: 10px 0 0 calc(var(--viewer-padding) + var(--viewer-gutter)); }
 .toolbar { position: fixed; z-index: 20; top: 8px; right: 10px; display: flex; gap: 2px; padding: 3px; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); border-radius: 5px; background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0,0,0,.22)); }
 .icon-button { position: relative; width: 26px; height: 26px; min-height: 26px; padding: 0; background: transparent; border-radius: 3px; }
 .icon-button:hover { background: var(--vscode-toolbar-hoverBackground); }
@@ -263,6 +267,6 @@ button { color: var(--vscode-icon-foreground); border: 0; cursor: pointer; }
 #status { position: fixed; right: 10px; bottom: 8px; color: var(--vscode-descriptionForeground); background: var(--vscode-editor-background); }
 .empty-state { padding: 24px var(--viewer-padding); color: var(--vscode-descriptionForeground); }
 @media (prefers-reduced-motion: reduce) { .toggle::before, .key, .value, .preview { transition: none; } }
-@media (max-width: 520px) { :root { --viewer-padding: 20px; --viewer-indent: 18px; } .search-panel { left: 8px; right: 8px; grid-template-columns: minmax(100px, 1fr) 38px 26px 26px 26px; } }
+@media (max-width: 520px) { :root { --viewer-padding: 6px; --viewer-gutter: 46px; --viewer-indent: 16px; } .search-panel { left: 8px; right: 8px; grid-template-columns: minmax(100px, 1fr) 38px 26px 26px 26px; } }
 `;
 }

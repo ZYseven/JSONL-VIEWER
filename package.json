@@ -2,7 +2,7 @@
   "name": "jsonl-viewer",
   "displayName": "json viewer",
   "description": "%description%",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "ZYseven",
   "license": "MIT",
   "repository": {
@@ -21,6 +21,9 @@
     "Other"
   ],
   "activationEvents": [],
+  "extensionKind": [
+    "workspace"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "configuration": {
@@ -28,9 +31,9 @@
       "properties": {
         "jsonViewer.fontSize": {
           "type": "number",
-          "default": 18,
-          "minimum": 10,
-          "maximum": 24,
+          "default": 0,
+          "minimum": 0,
+          "maximum": 32,
           "description": "%configuration.fontSize.description%"
         }
       }
@@ -40,15 +43,9 @@
         "viewType": "jsonlViewer.viewer",
         "displayName": "json viewer",
         "selector": [
-          {
-            "filenamePattern": "*.json"
-          },
-          {
-            "filenamePattern": "*.jsonl"
-          },
-          {
-            "filenamePattern": "*.ndjson"
-          }
+          { "filenamePattern": "*.json" },
+          { "filenamePattern": "*.jsonl" },
+          { "filenamePattern": "*.ndjson" }
         ],
         "priority": "option"
       }

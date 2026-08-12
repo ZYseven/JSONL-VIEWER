@@ -11,16 +11,12 @@ test('chunks JSONL records and searches unloaded records', () => {
   assert.equal(matches[0].rootIndex, 0);
 });
 
-test('wraps JSONL records in one object and array root without line labels', () => {
+test('wraps JSONL records in one array root without line labels', () => {
   const model = new DocumentModel('{"id":1}\n{"id":2}', 'sample.jsonl');
   const root = model.chunk(0, 10).nodes[0];
-  assert.equal(root.type, 'object');
+  assert.equal(root.type, 'array');
   assert.equal(root.label, undefined);
-  const records = model.children(root.id).nodes[0];
-  assert.equal(records.type, 'array');
-  assert.equal(records.key, undefined);
-  assert.equal(records.label, undefined);
-  const values = model.children(records.id).nodes;
+  const values = model.children(root.id).nodes;
   assert.equal(values.length, 2);
   assert.deepEqual(values.map((node) => node.label), [undefined, undefined]);
   assert.deepEqual(values.map((node) => node.trailingComma), [true, false]);

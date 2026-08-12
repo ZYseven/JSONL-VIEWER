@@ -15,12 +15,12 @@ test('reads JSONL records incrementally without indexing the whole file', async 
   await model.initialize();
   assert.deepEqual(model.summary(), { kind: 'jsonl', total: 1, recordCount: undefined });
   const root = model.chunk(0).nodes[0];
-  const records = await model.children(root.id);
-  const firstPage = await model.children(records.nodes[0].id, 0, 2);
+  assert.equal(root.type, 'array');
+  const firstPage = await model.children(root.id, 0, 2);
   assert.deepEqual(firstPage.nodes.map((node) => node.key), [undefined, undefined]);
   assert.equal(firstPage.done, false);
 
-  const secondPage = await model.children(records.nodes[0].id, 2, 2);
+  const secondPage = await model.children(root.id, 2, 2);
   assert.equal(secondPage.nodes.length, 1);
   assert.equal(secondPage.done, true);
   assert.equal(model.summary().recordCount, 3);

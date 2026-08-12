@@ -6,7 +6,7 @@ test.beforeEach(async ({ page }) => {
 
 test('renders the root and lazily expands a nested object', async ({ page }) => {
   await expect(page.locator('.row')).toHaveCount(4);
-  await expect(page.locator('.closing:not([hidden])').first()).toHaveText('}');
+  await expect(page.locator('.closing:not([hidden])').first().locator('.closing-body')).toHaveText('}');
   await page.locator('.node[data-id="$/scores#0"] > .row > .toggle').click();
   await expect(page.locator('.row')).toHaveCount(6);
   await expect(page.getByText('"B"', { exact: true })).toBeVisible();
@@ -37,9 +37,10 @@ test('keeps controls floating and the tree inside a narrow viewport', async ({ p
   expect(metrics.body).toBeLessThanOrEqual(metrics.viewport);
 });
 
-test('uses the VS Code UI font, compact left padding, and depth-aware brackets', async ({ page }) => {
-  await expect(page.locator('body')).toHaveCSS('font-family', /Consolas|Segoe UI|sans-serif/i);
-  await expect(page.locator('.row').first()).toHaveCSS('padding-left', '28px');
+test('uses the VS Code editor font, gutter, and depth-aware brackets', async ({ page }) => {
+  await expect(page.locator('body')).toHaveCSS('font-family', /Consolas|monospace/i);
+  await expect(page.locator('.row').first()).toHaveCSS('padding-left', '68px');
+  await expect(page.locator('.row').first().locator('.line')).toHaveText('1');
   const rootBracket = page.locator('.node[data-id="$"] > .row > .preview');
   await expect(rootBracket).toHaveClass(/bracket/);
   await expect(rootBracket).toHaveClass(/depth-0/);
