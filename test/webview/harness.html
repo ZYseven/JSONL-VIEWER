@@ -3,103 +3,87 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>JSONL Viewer Harness</title>
+  <title>json viewer harness</title>
   <style>
     :root {
-      --vscode-editor-foreground: #cccccc;
-      --vscode-editor-background: #1e1e1e;
-      --vscode-editor-font-family: Consolas, monospace;
-      --vscode-editor-font-size: 14px;
-      --vscode-panel-border: #3f3f46;
-      --vscode-input-foreground: #cccccc;
-      --vscode-input-background: #313131;
-      --vscode-focusBorder: #007fd4;
-      --vscode-descriptionForeground: #9d9d9d;
-      --vscode-button-secondaryForeground: #ffffff;
-      --vscode-button-secondaryBackground: #3a3d41;
-      --vscode-button-secondaryHoverBackground: #45494e;
-      --vscode-icon-foreground: #c5c5c5;
-      --vscode-toolbar-hoverBackground: #2a2d2e;
-      --vscode-list-hoverBackground: #2a2d2e;
-      --vscode-editorLineNumber-foreground: #858585;
-      --vscode-symbolIcon-propertyForeground: #9cdcfe;
-      --vscode-debugTokenExpression-string: #ce9178;
-      --vscode-debugTokenExpression-number: #b5cea8;
-      --vscode-debugTokenExpression-boolean: #569cd6;
-      --vscode-editor-findMatchHighlightBackground: #515c6a;
-      --vscode-errorForeground: #f48771;
+      --vscode-editor-foreground: #cccccc; --vscode-editor-background: #1e1e1e;
+      --vscode-editor-font-family: Consolas, monospace; --vscode-icon-foreground: #c5c5c5;
+      --vscode-panel-border: #3f3f46; --vscode-widget-border: #454545;
+      --vscode-editorWidget-background: #252526; --vscode-input-foreground: #cccccc;
+      --vscode-input-background: #313131; --vscode-focusBorder: #007fd4;
+      --vscode-descriptionForeground: #9d9d9d; --vscode-button-secondaryForeground: #fff;
+      --vscode-button-secondaryBackground: #3a3d41; --vscode-button-secondaryHoverBackground: #45494e;
+      --vscode-toolbar-hoverBackground: #2a2d2e; --vscode-symbolIcon-propertyForeground: #9cdcfe;
+      --vscode-debugTokenExpression-string: #ce9178; --vscode-debugTokenExpression-number: #b5cea8;
+      --vscode-debugTokenExpression-boolean: #569cd6; --vscode-editor-findMatchHighlightBackground: #515c6a;
+      --viewer-font-size: 13px; --viewer-line-height: 1.6em; --viewer-indent: 22px; --viewer-padding: 76px;
     }
     * { box-sizing: border-box; }
-    body { height: 100vh; margin: 0; display: flex; flex-direction: column; overflow: hidden; color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-editor-font-family); font-size: var(--vscode-editor-font-size); }
-    :root { --viewer-line-height: 24px; --viewer-gutter-width: 52px; --viewer-indent: 22px; --viewer-code-padding: 64px; }
-    .toolbar { min-height: 36px; display: flex; align-items: center; gap: 2px; padding: 4px 8px; border-bottom: 1px solid var(--vscode-panel-border); }
-    .search-wrap { position: relative; display: flex; align-items: center; flex: 0 1 360px; min-width: 160px; margin-right: auto; }
-    input { width: 100%; height: 26px; padding: 2px 60px 2px 8px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid transparent; }
-    #search-count { position: absolute; right: 7px; width: 48px; text-align: right; color: var(--vscode-descriptionForeground); }
-    button { color: var(--vscode-icon-foreground); border: 0; cursor: pointer; }
-    .icon-button { width: 28px; height: 28px; min-height: 28px; padding: 0; background: transparent; border-radius: 4px; font-size: 0; }
-    .icon-button:hover { background: var(--vscode-toolbar-hoverBackground); }
-    .icon-button::before, .icon-button::after { content: ''; display: block; }
-    #expand-all, #collapse-all { position: relative; }
-    #expand-all::before, #expand-all::after, #collapse-all::before, #collapse-all::after { position: absolute; left: 9px; width: 8px; height: 8px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; }
-    #expand-all::before { top: 5px; transform: rotate(45deg); }
-    #expand-all::after { top: 10px; transform: rotate(45deg); }
-    #collapse-all::before { top: 8px; transform: rotate(225deg); }
-    #collapse-all::after { top: 13px; transform: rotate(225deg); }
-    #refresh { position: relative; }
-    #refresh::before { width: 12px; height: 12px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; }
-    #refresh::after { position: absolute; top: 7px; right: 6px; border-top: 3px solid transparent; border-bottom: 3px solid transparent; border-left: 4px solid currentColor; transform: rotate(-35deg); }
-    #content { flex: 1; min-height: 0; padding: 10px 0 36px; overflow: auto; }
-    #tree { counter-reset: viewer-line; min-width: max-content; width: 100%; }
+    html, body { height: 100%; }
+    body { margin: 0; overflow: hidden; color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-editor-font-family); font-size: var(--viewer-font-size); }
+    button, input { font: inherit; }
+    button { color: var(--vscode-icon-foreground, var(--vscode-editor-foreground)); border: 0; cursor: pointer; }
+    #content { height: 100%; padding: 18px 0 48px; overflow: auto; }
+    #tree { min-width: max-content; width: 100%; }
     .node { min-width: max-content; }
     .root-page, .children-page { display: contents; }
-    .row, .closing { counter-increment: viewer-line; position: relative; display: flex; min-width: max-content; min-height: var(--viewer-line-height); align-items: flex-start; padding: 0 var(--viewer-code-padding) 0 calc(var(--viewer-gutter-width) + var(--viewer-code-padding) + var(--depth) * var(--viewer-indent)); line-height: var(--viewer-line-height); }
-    .row:hover { background: var(--vscode-list-hoverBackground); }
+    .row, .closing { position: relative; display: flex; min-width: max-content; min-height: var(--viewer-line-height); padding: 0 28px 0 calc(var(--viewer-padding) + var(--depth) * var(--viewer-indent)); line-height: var(--viewer-line-height); }
     .row.match { background: var(--vscode-editor-findMatchHighlightBackground); }
-    .line { position: absolute; left: 0; top: 0; width: var(--viewer-gutter-width); height: 100%; padding-right: 14px; border-right: 1px solid var(--vscode-panel-border); text-align: right; color: var(--vscode-editorLineNumber-foreground); }
-    .line::before { content: counter(viewer-line); }
-    .toggle { position: relative; flex: 0 0 34px; width: 34px; height: var(--viewer-line-height); min-height: var(--viewer-line-height); margin-left: -34px; padding: 0; background: transparent; }
-    .toggle::before { content: ''; position: absolute; left: 8px; top: 7px; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 7px solid currentColor; transition: transform 120ms ease; }
+    .toggle { position: relative; flex: 0 0 24px; width: 24px; min-height: var(--viewer-line-height); margin-left: -28px; padding: 0; background: transparent; }
+    .toggle::before { content: ''; position: absolute; left: 8px; top: calc(50% - 5px); border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 7px solid currentColor; }
     .toggle.expanded::before { transform: rotate(90deg); }
     .toggle.empty { visibility: hidden; }
-    .key, .value, .preview { cursor: copy; white-space: pre; }
+    .key, .value, .preview { display: inline-block; margin: 0 -3px; padding: 0 3px; border-radius: 4px; cursor: pointer; white-space: pre; }
+    .key:hover, .value:hover, .preview:hover { background: var(--vscode-toolbar-hoverBackground); }
     .key { color: var(--vscode-symbolIcon-propertyForeground); font-weight: 600; }
     .string { color: var(--vscode-debugTokenExpression-string); font-weight: 600; }
     .number { color: var(--vscode-debugTokenExpression-number); }
     .boolean, .null { color: var(--vscode-debugTokenExpression-boolean); font-weight: 600; }
     .preview { color: var(--vscode-descriptionForeground); }
-    .punctuation { color: var(--vscode-editor-foreground); }
-    .children[hidden] { display: none; }
-    #load-more { display: block; margin: 4px auto 24px; }
-    #load-more[hidden] { display: none; }
-    #status { position: fixed; right: 10px; bottom: 8px; }
-    .closing[hidden] { display: none; }
-    @media (max-width: 520px) { :root { --viewer-gutter-width: 44px; --viewer-code-padding: 44px; --viewer-indent: 20px; } .toolbar { flex-wrap: nowrap; } .search-wrap { flex: 1 1 auto; min-width: 120px; } }
+    .children[hidden], .closing[hidden], #load-more[hidden], .search-panel[hidden] { display: none; }
+    .children-page { display: contents; }
+    .children-more, #load-more { min-height: 26px; padding: 2px 10px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border-radius: 3px; }
+    .children-more { margin: 4px 0 4px calc(var(--viewer-padding) + 18px); }
+    #load-more { margin: 10px 0 0 var(--viewer-padding); }
+    .toolbar { position: fixed; z-index: 20; top: 8px; right: 10px; display: flex; gap: 2px; padding: 3px; border: 1px solid var(--vscode-widget-border); border-radius: 5px; background: var(--vscode-editorWidget-background); }
+    .icon-button { position: relative; width: 26px; height: 26px; min-height: 26px; padding: 0; background: transparent; }
+    .expand-all::before, .collapse-all::before { content: ''; position: absolute; left: 6px; top: 6px; width: 12px; height: 12px; border: 1px solid currentColor; }
+    .expand-all::after, .collapse-all::after { content: ''; position: absolute; left: 9px; top: 12px; width: 8px; height: 1px; background: currentColor; }
+    .expand-all::before { background: linear-gradient(currentColor,currentColor) center/1px 8px no-repeat; }
+    .refresh::before { content: ''; position: absolute; left: 6px; top: 6px; width: 11px; height: 11px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; }
+    .search-panel { position: fixed; z-index: 30; top: 8px; right: 10px; display: grid; grid-template-columns: minmax(180px,320px) 44px 26px 26px 26px; align-items: center; gap: 2px; padding: 4px; border: 1px solid var(--vscode-widget-border); border-radius: 5px; background: var(--vscode-editorWidget-background); }
+    #search { height: 26px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid transparent; }
+    #search-count { text-align: center; color: var(--vscode-descriptionForeground); }
+    @media (max-width: 520px) { :root { --viewer-padding: 48px; --viewer-indent: 20px; } .search-panel { left: 8px; right: 8px; grid-template-columns: minmax(100px,1fr) 38px 26px 26px 26px; } }
   </style>
 </head>
 <body>
-  <header class="toolbar">
-    <div class="search-wrap"><input id="search" type="search" placeholder="Search keys and values"><span id="search-count"></span></div>
-    <button id="expand-all" class="icon-button" title="Expand all">⊞</button>
-    <button id="collapse-all" class="icon-button" title="Collapse all">⊟</button>
-    <button id="refresh" class="icon-button" title="Refresh">↻</button>
-  </header>
-  <main id="content"><div id="tree" role="tree"></div></main>
-  <button id="load-more" hidden>Load more</button>
+  <div id="search-panel" class="search-panel" hidden>
+    <input id="search" type="search" placeholder="Search keys and values">
+    <span id="search-count"></span>
+    <button id="search-previous" class="icon-button"></button>
+    <button id="search-next" class="icon-button"></button>
+    <button id="search-close" class="icon-button"></button>
+  </div>
+  <div class="toolbar">
+    <button id="expand-all" class="icon-button expand-all" title="Expand all"></button>
+    <button id="collapse-all" class="icon-button collapse-all" title="Collapse all"></button>
+    <button id="refresh" class="icon-button refresh" title="Refresh"></button>
+  </div>
+  <main id="content"><div id="tree" role="tree"></div><button id="load-more" hidden>Load more</button></main>
   <div id="status"></div>
   <script>
     const nodes = {
-      '$': [{ id: '$/sample_id#0', type: 'string', key: 'sample_id', value: '13eb2c6a-3bac-402f-b9ac-697af45a442a', line: 2, endLine: 2, childCount: 0, trailingComma: true }, { id: '$/correct#0', type: 'boolean', key: 'correct', value: true, line: 3, endLine: 3, childCount: 0, trailingComma: true }, { id: '$/scores#0', type: 'object', key: 'scores', preview: '{2}', line: 4, endLine: 7, childCount: 2 }],
-      '$/scores#0': [{ id: '$/scores#0/A#0', type: 'number', key: 'A', value: '-13.31251667019227', line: 5, endLine: 5, childCount: 0, trailingComma: true }, { id: '$/scores#0/B#0', type: 'number', key: 'B', value: '-0.000016689439805', line: 6, endLine: 6, childCount: 0 }]
+      '$': [{ id: '$/sample_id#0', type: 'string', key: 'sample_id', value: '13eb2c6a', line: 2, endLine: 2, childCount: 0, trailingComma: true }, { id: '$/correct#0', type: 'boolean', key: 'correct', value: true, line: 3, endLine: 3, childCount: 0, trailingComma: true }, { id: '$/scores#0', type: 'object', key: 'scores', preview: '{2}', line: 4, endLine: 7, childCount: 2 }],
+      '$/scores#0': [{ id: '$/scores#0/A#0', type: 'number', key: 'A', value: '-13.31', line: 5, endLine: 5, childCount: 0, trailingComma: true }, { id: '$/scores#0/B#0', type: 'number', key: 'B', value: '-0.01', line: 6, endLine: 6, childCount: 0 }]
     };
     window.acquireVsCodeApi = () => ({
-      getState: () => undefined,
-      setState: () => {},
+      getState: () => undefined, setState: () => {},
       postMessage: (message) => {
-        if (message.type === 'ready' || message.type === 'refresh') dispatch({ type: 'document', payload: { kind: 'json', total: 1 } });
+        if (message.type === 'ready' || message.type === 'refresh') { dispatch({ type: 'settings', fontSize: 13 }); dispatch({ type: 'document', payload: { kind: 'json', total: 1 } }); }
         if (message.type === 'requestChunk') dispatch({ type: 'chunkData', requestId: message.requestId, start: 0, nodes: [{ id: '$', type: 'object', preview: '{3}', line: 1, endLine: 8, childCount: 3, defaultExpanded: true }], done: true });
         if (message.type === 'requestChildren') dispatch({ type: 'childrenData', requestId: message.requestId, nodeId: message.nodeId, start: message.start, nodes: nodes[message.nodeId] || [], done: true });
-        if (message.type === 'findMatches') dispatch({ type: 'searchResults', requestId: message.requestId, matches: message.query ? [{ nodeId: '$/scores#0/B#0', pathIds: ['$', '$/scores#0', '$/scores#0/B#0'], pathIndexes: [0, 2, 1], rootIndex: 0 }] : [] });
+        if (message.type === 'findMatches') dispatch({ type: 'searchResults', requestId: message.requestId, matches: message.query ? [{ nodeId: '$/scores#0/B#0', pathIds: ['$', '$/scores#0', '$/scores#0/B#0'], pathIndexes: [0,2,1], rootIndex: 0 }] : [] });
       }
     });
     function dispatch(data) { setTimeout(() => window.dispatchEvent(new MessageEvent('message', { data })), 0); }

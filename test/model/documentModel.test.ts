@@ -4,11 +4,26 @@ import { DocumentModel } from '../../src/model/documentModel';
 
 test('chunks JSONL records and searches unloaded records', () => {
   const model = new DocumentModel('{"name":"alpha"}\n{"name":"beta"}\n{"name":"gamma"}', 'sample.jsonl');
-  assert.deepEqual(model.summary(), { kind: 'jsonl', total: 3, issue: undefined });
+  assert.deepEqual(model.summary(), { kind: 'jsonl', total: 1, recordCount: 3, issue: undefined });
   assert.equal(model.chunk(0, 1).nodes.length, 1);
   const matches = model.search('GAM');
   assert.equal(matches.length, 1);
-  assert.equal(matches[0].rootIndex, 2);
+  assert.equal(matches[0].rootIndex, 0);
+});
+
+test('wraps JSONL records in one object and array root without line labels', () => {
+  const model = new DocumentModel('{"id":1}\n{"id":2}', 'sample.jsonl');
+  const root = model.chunk(0, 10).nodes[0];
+  assert.equal(root.type, 'object');
+  assert.equal(root.label, undefined);
+  const records = model.children(root.id).nodes[0];
+  assert.equal(records.type, 'array');
+  assert.equal(records.key, undefined);
+  assert.equal(records.label, undefined);
+  const values = model.children(records.id).nodes;
+  assert.equal(values.length, 2);
+  assert.deepEqual(values.map((node) => node.label), [undefined, undefined]);
+  assert.deepEqual(values.map((node) => node.trailingComma), [true, false]);
 });
 
 test('keeps the JSON root container visible and expanded by default', () => {

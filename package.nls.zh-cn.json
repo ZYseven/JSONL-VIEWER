@@ -1,5 +1,6 @@
 {
   "displayName": "JSONL 查看器",
   "description": "快速、只读的 JSON、JSONL 和 NDJSON 树形查看器。",
-  "editor.displayName": "JSONL 查看器"
+  "editor.displayName": "json viewer",
+  "configuration.fontSize.description": "JSON 树形查看器使用的字号。"
 }

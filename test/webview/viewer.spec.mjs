@@ -21,6 +21,8 @@ test('collapses the rendered JSON structure without leaving orphaned brackets', 
 });
 
 test('search expands the matching path without duplicate nodes', async ({ page }) => {
+  await page.keyboard.press('Control+f');
+  await expect(page.locator('#search-panel')).toBeVisible();
   await page.getByPlaceholder('Search keys and values').fill('B');
   await expect(page.locator('#search-count')).toHaveText('1/1');
   await expect(page.locator('.row')).toHaveCount(6);
@@ -28,9 +30,25 @@ test('search expands the matching path without duplicate nodes', async ({ page }
   await expect(page.getByText('"B"', { exact: true })).toHaveCount(1);
 });
 
-test('keeps the toolbar and tree inside a narrow viewport', async ({ page }) => {
+test('keeps controls floating and the tree inside a narrow viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 });
-  await expect(page.locator('.toolbar')).toHaveCSS('flex-wrap', 'nowrap');
+  await expect(page.locator('.toolbar')).toHaveCSS('position', 'fixed');
   const metrics = await page.evaluate(() => ({ viewport: window.innerWidth, body: document.body.scrollWidth }));
   expect(metrics.body).toBeLessThanOrEqual(metrics.viewport);
+});
+
+test('shows copy affordance only on the hovered token', async ({ page }) => {
+  const key = page.getByText('"sample_id"', { exact: true });
+  await expect(key).toHaveCSS('cursor', 'pointer');
+  await key.hover();
+  await expect(key).toHaveCSS('background-color', 'rgb(42, 45, 46)');
+  await expect(key.locator('xpath=ancestor::div[contains(@class,"row")]')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+});
+
+test('keeps search hidden until Ctrl+F and closes it with Escape', async ({ page }) => {
+  await expect(page.locator('#search-panel')).toBeHidden();
+  await page.keyboard.press('Control+f');
+  await expect(page.locator('#search-panel')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#search-panel')).toBeHidden();
 });

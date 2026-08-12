@@ -11,6 +11,7 @@ export type WebviewToExtension =
 
 export type ExtensionToWebview =
   | { type: 'document'; payload: DocumentSummary }
+  | { type: 'settings'; fontSize: number }
   | { type: 'chunkData'; requestId: string; start: number; nodes: ViewNode[]; done: boolean }
   | { type: 'childrenData'; requestId: string; nodeId: string; start: number; nodes: ViewNode[]; done: boolean }
   | { type: 'displayValue'; requestId: string; nodeId: string; value: string }

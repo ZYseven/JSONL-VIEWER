@@ -19,6 +19,7 @@ const text = zh ? {
 const tree = element<HTMLDivElement>('tree');
 const content = element<HTMLElement>('content');
 const loadMore = element<HTMLButtonElement>('load-more');
+const searchPanel = element<HTMLDivElement>('search-panel');
 const search = element<HTMLInputElement>('search');
 const searchCount = element<HTMLSpanElement>('search-count');
 const status = element<HTMLDivElement>('status');
@@ -35,6 +36,7 @@ let chunkSize = 200;
 let pendingReveal = false;
 let expandAllActive = false;
 let restoreScrollTop = persisted?.scrollTop ?? 0;
+let searchOpen = false;
 const requestedChunks = new Set<number>();
 const requestedChildren = new Set<string>();
 const loadObserver = new IntersectionObserver((entries) => {
@@ -63,6 +65,9 @@ window.addEventListener('message', (event: MessageEvent<ExtensionToWebview>) => 
       }
       requestChunk(0);
       if (search.value.trim()) post({ type: 'findMatches', requestId: id(), query: search.value });
+      break;
+    case 'settings':
+      document.documentElement.style.setProperty('--viewer-font-size', `${message.fontSize}px`);
       break;
     case 'chunkData':
       requestedChunks.delete(message.start);
@@ -140,6 +145,22 @@ element<HTMLButtonElement>('expand-all').addEventListener('click', () => {
   expandAllVisible();
 });
 
+element<HTMLButtonElement>('search-close').addEventListener('click', () => closeSearch());
+element<HTMLButtonElement>('search-previous').addEventListener('click', () => cycleMatch(-1));
+element<HTMLButtonElement>('search-next').addEventListener('click', () => cycleMatch(1));
+
+window.addEventListener('keydown', (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+    event.preventDefault();
+    openSearch();
+    return;
+  }
+  if (event.key === 'Escape' && searchOpen) {
+    event.preventDefault();
+    closeSearch();
+  }
+});
+
 let searchTimer: number | undefined;
 search.addEventListener('input', () => {
   window.clearTimeout(searchTimer);
@@ -149,8 +170,7 @@ search.addEventListener('input', () => {
 search.addEventListener('keydown', (event) => {
   if (event.key !== 'Enter' || matches.length === 0) return;
   event.preventDefault();
-  currentMatch = (currentMatch + (event.shiftKey ? -1 : 1) + matches.length) % matches.length;
-  revealCurrent();
+  cycleMatch(event.shiftKey ? -1 : 1);
 });
 content.addEventListener('scroll', () => {
   saveState();
@@ -169,11 +189,6 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
   row.setAttribute('role', 'treeitem');
   row.dataset.nodeId = node.id;
 
-  const line = document.createElement('span');
-  line.className = 'line';
-  line.title = node.endLine > node.line ? `${node.line}-${node.endLine}` : String(node.line);
-  row.append(line);
-
   const toggle = document.createElement('button');
   toggle.className = `toggle ${node.childCount ? '' : 'empty'}`;
   toggle.ariaLabel = text.toggle;
@@ -184,14 +199,20 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
     const label = document.createElement('span');
     label.className = 'key';
     label.textContent = node.label;
+    label.tabIndex = 0;
+    label.role = 'button';
     label.addEventListener('click', () => post({ type: 'copy', nodeId: node.id, mode: 'value' }));
+    label.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') post({ type: 'copy', nodeId: node.id, mode: 'value' }); });
     row.append(label, punctuation(': '));
   } else if (node.key !== undefined) {
     const key = document.createElement('span');
     key.className = 'key';
     key.textContent = JSON.stringify(node.key);
     key.title = text.copyProperty;
+    key.tabIndex = 0;
+    key.role = 'button';
     key.addEventListener('click', () => post({ type: 'copy', nodeId: node.id, mode: 'keyObject' }));
+    key.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') post({ type: 'copy', nodeId: node.id, mode: 'keyObject' }); });
     row.append(key);
     if (node.duplicate) {
       const warning = document.createElement('span');
@@ -213,7 +234,10 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
     preview.dataset.collapsed = `${node.preview ?? ''}${node.trailingComma ? ',' : ''}`;
     preview.dataset.expanded = node.type === 'object' ? '{' : '[';
     preview.title = text.copyValue;
+    preview.tabIndex = 0;
+    preview.role = 'button';
     preview.addEventListener('click', () => post({ type: 'copy', nodeId: node.id, mode: 'value' }));
+    preview.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') post({ type: 'copy', nodeId: node.id, mode: 'value' }); });
     row.append(preview);
   } else {
     const value = document.createElement('span');
@@ -224,7 +248,10 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
         ? node.preview ?? (node.type === 'object' ? '{}' : '[]')
         : String(node.value);
     value.title = text.copyValue;
+    value.tabIndex = 0;
+    value.role = 'button';
     value.addEventListener('click', () => post({ type: 'copy', nodeId: node.id, mode: 'value' }));
+    value.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') post({ type: 'copy', nodeId: node.id, mode: 'value' }); });
     if (node.truncated) {
       value.classList.add('truncated');
       value.title = text.revealValue;
@@ -247,13 +274,10 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
   const closing = document.createElement('div');
   closing.className = 'closing';
   closing.style.setProperty('--depth', String(depth));
-  const closingLine = document.createElement('span');
-  closingLine.className = 'line';
-  closingLine.title = String(node.endLine);
   const closingBody = document.createElement('span');
   closingBody.className = 'closing-body punctuation';
   closingBody.textContent = `${node.type === 'object' ? '}' : node.type === 'array' ? ']' : ''}${node.trailingComma ? ',' : ''}`;
-  closing.append(closingLine, closingBody);
+  closing.append(closingBody);
   closing.hidden = true;
   toggle.addEventListener('click', () => toggleNode(host, node));
   host.append(row, children);
@@ -385,6 +409,25 @@ function applyMatches(): void {
   document.querySelectorAll('.row.match, .row.current').forEach((item) => item.classList.remove('match', 'current'));
   for (const match of matches) tree.querySelector(`.row[data-node-id="${cssEscape(match.nodeId)}"]`)?.classList.add('match');
   searchCount.textContent = matches.length ? `${Math.max(currentMatch + 1, 1)}/${matches.length}` : search.value ? '0/0' : '';
+}
+
+function openSearch(): void {
+  searchOpen = true;
+  searchPanel.hidden = false;
+  search.focus();
+  search.select();
+}
+
+function closeSearch(): void {
+  searchOpen = false;
+  searchPanel.hidden = true;
+  content.focus();
+}
+
+function cycleMatch(direction: number): void {
+  if (!matches.length) return;
+  currentMatch = (currentMatch + direction + matches.length) % matches.length;
+  revealCurrent();
 }
 
 function restoreExpanded(root: ParentNode): void {

@@ -24,6 +24,7 @@ export interface ViewNode {
 export interface DocumentSummary {
   kind: DocumentKind;
   total: number;
+  recordCount?: number;
   issue?: ParseIssue;
 }
 
@@ -42,6 +43,8 @@ interface IndexedJsonlRecord {
 }
 
 export class DocumentModel {
+  private static readonly jsonlRootId = '$jsonl';
+  private static readonly jsonlRecordsId = '$jsonl/records';
   readonly kind: DocumentKind;
   readonly issue?: ParseIssue;
   private readonly roots: JsonNode[] = [];
@@ -52,7 +55,7 @@ export class DocumentModel {
   private readonly pathIndexes = new Map<string, number[]>();
   private readonly rootIndexes = new Map<string, number>();
 
-  constructor(text: string, fileName: string, private readonly lineLabel = 'Line') {
+  constructor(text: string, fileName: string) {
     this.source = text;
     this.kind = /\.(jsonl|ndjson)$/i.test(fileName) ? 'jsonl' : 'json';
     if (this.kind === 'jsonl') {
@@ -70,31 +73,46 @@ export class DocumentModel {
   }
 
   summary(): DocumentSummary {
-    return { kind: this.kind, total: this.kind === 'jsonl' ? this.records.length : this.roots.length, issue: this.issue };
+    return this.kind === 'jsonl'
+      ? { kind: this.kind, total: this.records.length ? 1 : 0, recordCount: this.records.length, issue: this.issue }
+      : { kind: this.kind, total: this.roots.length, issue: this.issue };
   }
 
   chunk(start: number, size: number): { nodes: ViewNode[]; done: boolean } {
     if (this.issue) return { nodes: [], done: true };
     if (this.kind === 'jsonl') {
-      const items = this.records.slice(start, start + size).map((record, localIndex) => {
-        try {
-          const node = this.parseRecord(record, start + localIndex);
-          return this.toView(node, this.recordLabel(record.line));
-        } catch (error) {
-          if (!(error instanceof JsonParseError)) throw error;
-          return {
-            id: record.id, type: 'error' as const, label: this.recordLabel(record.line), line: record.line,
-            endLine: record.line, childCount: 0, error: `${error.issue.message} (${error.issue.line}:${error.issue.column})`
-          };
-        }
-      });
-      return { nodes: items, done: start + items.length >= this.records.length };
+      if (start > 0 || this.records.length === 0) return { nodes: [], done: true };
+      return { nodes: [this.jsonlRootView()], done: true };
     }
     const items = this.roots.slice(start, start + size).map((node) => this.toView(node));
     return { nodes: items, done: start + items.length >= this.roots.length };
   }
 
   children(nodeId: string, start = 0, size = 100): { nodes: ViewNode[]; done: boolean } {
+    if (this.kind === 'jsonl' && nodeId === DocumentModel.jsonlRootId) {
+      return start > 0 ? { nodes: [], done: true } : { nodes: [this.jsonlRecordsView()], done: true };
+    }
+    if (this.kind === 'jsonl' && nodeId === DocumentModel.jsonlRecordsId) {
+      const items = this.records.slice(start, start + size).map((record, localIndex) => {
+        const recordIndex = start + localIndex;
+        try {
+          const node = this.parseRecord(record, recordIndex);
+          return this.toView(node, undefined, recordIndex < this.records.length - 1);
+        } catch (error) {
+          if (!(error instanceof JsonParseError)) throw error;
+          return {
+            id: record.id,
+            type: 'error' as const,
+            line: record.line,
+            endLine: record.line,
+            childCount: 0,
+            trailingComma: recordIndex < this.records.length - 1,
+            error: `${error.issue.message} (${error.issue.line}:${error.issue.column})`
+          };
+        }
+      });
+      return { nodes: items, done: start + items.length >= this.records.length };
+    }
     const children = this.nodes.get(nodeId)?.children ?? [];
     const items = children.slice(start, start + size).map((node, localIndex) => this.toView(
       node,
@@ -115,9 +133,23 @@ export class DocumentModel {
           const raw = this.source.slice(record.start, record.end);
           const node = this.nodes.get(record.id) ?? parseJson(raw, { lineOffset: record.line - 1, idPrefix: record.id });
           const recordMatches: SearchMatch[] = [];
-          collectMatches(node, normalized, index, [], [], 0, recordMatches);
+          collectMatches(
+            node,
+            normalized,
+            0,
+            [DocumentModel.jsonlRootId, DocumentModel.jsonlRecordsId],
+            [0, 0],
+            index,
+            recordMatches
+          );
           if (recordMatches.length) {
-            if (!this.nodes.has(record.id)) this.index(node, [], [], index, index);
+            if (!this.nodes.has(record.id)) this.index(
+              node,
+              [DocumentModel.jsonlRootId, DocumentModel.jsonlRecordsId],
+              [0, 0],
+              0,
+              index
+            );
             matches.push(...recordMatches);
           }
         } catch (error) {
@@ -142,6 +174,10 @@ export class DocumentModel {
   }
 
   copy(nodeId: string, mode: 'keyObject' | 'value'): string | undefined {
+    if (this.kind === 'jsonl' && nodeId === DocumentModel.jsonlRecordsId) return this.serializeJsonlArray();
+    if (this.kind === 'jsonl' && nodeId === DocumentModel.jsonlRootId) {
+      return `{\n${indentMultiline(this.serializeJsonlArray(), 1)}\n}`;
+    }
     const node = this.nodes.get(nodeId);
     if (!node) return undefined;
     if (mode === 'keyObject' && node.key !== undefined) {
@@ -156,17 +192,53 @@ export class DocumentModel {
     return node.type === 'string' ? JSON.stringify(node.value) : node.raw;
   }
 
-  private recordLabel(line: number): string {
-    return this.lineLabel === 'Line' ? `Line ${line}` : `第 ${line} 行`;
-  }
-
   private parseRecord(record: IndexedJsonlRecord, rootIndex: number): JsonNode {
     const cached = this.nodes.get(record.id);
     if (cached) return cached;
     const raw = this.source.slice(record.start, record.end);
     const node = parseJson(raw, { lineOffset: record.line - 1, idPrefix: record.id });
-    this.index(node, [], [], rootIndex, rootIndex);
+    this.index(
+      node,
+      [DocumentModel.jsonlRootId, DocumentModel.jsonlRecordsId],
+      [0, 0],
+      0,
+      rootIndex
+    );
     return node;
+  }
+
+  private jsonlRootView(): ViewNode {
+    const firstLine = this.records[0]?.line ?? 1;
+    const lastLine = this.records[this.records.length - 1]?.line ?? firstLine;
+    return {
+      id: DocumentModel.jsonlRootId,
+      type: 'object',
+      preview: '{1}',
+      line: firstLine,
+      endLine: lastLine,
+      childCount: 1,
+      defaultExpanded: true
+    };
+  }
+
+  private jsonlRecordsView(): ViewNode {
+    const firstLine = this.records[0]?.line ?? 1;
+    const lastLine = this.records[this.records.length - 1]?.line ?? firstLine;
+    return {
+      id: DocumentModel.jsonlRecordsId,
+      type: 'array',
+      preview: `[${this.records.length}]`,
+      line: firstLine,
+      endLine: lastLine,
+      childCount: this.records.length,
+      defaultExpanded: true
+    };
+  }
+
+  private serializeJsonlArray(): string {
+    if (!this.records.length) return '[]';
+    const values = this.records.map((record) => this.source.slice(record.start, record.end).trim());
+    return `[\n${values.map((value) => indentMultiline(value, 1)).join(',\n')}\n]`;
   }
 
   private index(node: JsonNode, ancestors: string[], ancestorIndexes: number[], rootIndex: number, siblingIndex: number): void {
@@ -228,17 +300,23 @@ function indexJsonLines(source: string): IndexedJsonlRecord[] {
   const records: IndexedJsonlRecord[] = [];
   let line = 1;
   let lineStart = source.charCodeAt(0) === 0xfeff ? 1 : 0;
-  for (let offset = lineStart; offset <= source.length; offset += 1) {
-    const char = source[offset];
-    const atEnd = offset === source.length;
-    if (!atEnd && char !== '\n' && char !== '\r') continue;
+  while (lineStart <= source.length) {
+    const lf = source.indexOf('\n', lineStart);
+    const cr = source.indexOf('\r', lineStart);
+    const candidates = [lf, cr].filter((offset) => offset >= 0);
+    const offset = candidates.length ? Math.min(...candidates) : source.length;
     const raw = source.slice(lineStart, offset);
     if (raw.trim().length > 0) records.push({ id: `record:${line}`, line, start: lineStart, end: offset });
-    if (char === '\r' && source[offset + 1] === '\n') offset += 1;
-    lineStart = offset + 1;
+    if (offset === source.length) break;
+    lineStart = offset + (source[offset] === '\r' && source[offset + 1] === '\n' ? 2 : 1);
     line += 1;
   }
   return records;
+}
+
+function indentMultiline(value: string, depth: number): string {
+  const indent = '  '.repeat(depth);
+  return value.split(/\r\n|\r|\n/).map((line) => indent + line).join('\n').trimStart();
 }
 
 function compareIndexes(left: number[], right: number[]): number {
