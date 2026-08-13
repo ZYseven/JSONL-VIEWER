@@ -24,5 +24,5 @@ test('registers an optional custom editor for supported extensions', () => {
   const editor = manifest.contributes.customEditors[0];
   assert.equal(editor.displayName, 'json viewer');
   assert.equal(editor.priority, 'option');
-  assert.deepEqual(editor.selector.map((item) => item.filenamePattern), ['*.json', '*.jsonl', '*.ndjson']);
+  assert.deepEqual(editor.selector.map((item) => item.filenamePattern), ['*.{json,jsonl,ndjson}']);
 });

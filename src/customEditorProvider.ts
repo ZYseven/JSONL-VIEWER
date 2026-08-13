@@ -240,7 +240,7 @@ button { color: var(--vscode-icon-foreground); border: 0; cursor: pointer; }
 .children-more:hover, #load-more:hover { background: var(--vscode-button-secondaryHoverBackground); }
 .children-more { margin: 4px 0 4px calc(var(--viewer-padding) + 18px); }
 #load-more { margin: 10px 0 0 calc(var(--viewer-padding) + var(--viewer-gutter)); }
-.toolbar { position: fixed; z-index: 20; top: 8px; right: 10px; display: flex; gap: 2px; padding: 3px; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); border-radius: 5px; background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0,0,0,.22)); }
+.toolbar { position: fixed; z-index: 20; top: 8px; right: 24px; display: flex; gap: 2px; padding: 3px; border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); border-radius: 5px; background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0,0,0,.22)); }
 .icon-button { position: relative; width: 26px; height: 26px; min-height: 26px; padding: 0; background: transparent; border-radius: 3px; }
 .icon-button:hover { background: var(--vscode-toolbar-hoverBackground); }
 .icon-button:focus-visible, .toggle:focus-visible, .children-more:focus-visible, #load-more:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }

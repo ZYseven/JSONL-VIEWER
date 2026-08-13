@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4
+
+- Matched newly loaded JSONL records to the expansion depth of the previous last record.
+- Moved the floating toolbar left of the editor scrollbar.
+- Collapsed the three file selectors into one brace glob to prevent duplicate editor menu entries.
+
 ## 0.1.3
 
 - Separated the line-number and folding gutters to prevent overlap.

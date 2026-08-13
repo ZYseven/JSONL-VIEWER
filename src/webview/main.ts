@@ -40,6 +40,7 @@ let searchOpen = false;
 let lineNumbersQueued = false;
 const requestedChunks = new Set<number>();
 const requestedChildren = new Set<string>();
+const requestedExpansionDepth = new Map<string, number>();
 const loadObserver = new IntersectionObserver((entries) => {
   for (const entry of entries) {
     if (entry.isIntersecting) (entry.target as HTMLButtonElement).click();
@@ -98,13 +99,16 @@ window.addEventListener('message', (event: MessageEvent<ExtensionToWebview>) => 
       const container = host?.querySelector<HTMLElement>(':scope > .children');
       if (!container) return;
       const depth = Number(host?.dataset.depth ?? 0) + 1;
-      requestedChildren.delete(`${message.nodeId}:${message.start}`);
+      const requestKey = `${message.nodeId}:${message.start}`;
+      const inheritedExpansionDepth = requestedExpansionDepth.get(requestKey);
+      requestedChildren.delete(requestKey);
+      requestedExpansionDepth.delete(requestKey);
       const page = document.createElement('div');
       page.className = 'children-page';
       page.dataset.start = String(message.start);
       page.dataset.count = String(message.nodes.length);
       page.dataset.done = String(message.done);
-      message.nodes.forEach((node) => page.append(renderNode(node, depth)));
+      message.nodes.forEach((node) => page.append(renderNode(node, depth, inheritedExpansionDepth)));
       const nextPage = Array.from(container.querySelectorAll<HTMLElement>(':scope > .children-page'))
         .find((item) => Number(item.dataset.start) > message.start);
       container.insertBefore(page, nextPage ?? null);
@@ -181,12 +185,14 @@ content.addEventListener('scroll', () => {
   if (!done && content.scrollTop + content.clientHeight >= content.scrollHeight - 160) requestChunk(loaded);
 });
 
-function renderNode(node: ViewNode, depth: number): HTMLElement {
+function renderNode(node: ViewNode, depth: number, inheritedExpansionDepth?: number): HTMLElement {
   const host = document.createElement('div');
   host.className = 'node';
   host.dataset.id = node.id;
   host.dataset.depth = String(depth);
-  if (node.defaultExpanded) expanded.add(node.id);
+  const shouldExpand = inheritedExpansionDepth === undefined ? node.defaultExpanded : inheritedExpansionDepth > 0;
+  if (shouldExpand) expanded.add(node.id);
+  if (inheritedExpansionDepth !== undefined) host.dataset.inheritedExpansionDepth = String(inheritedExpansionDepth);
   const row = document.createElement('div');
   row.className = `row ${node.type === 'error' ? 'error' : ''}`;
   row.style.setProperty('--depth', String(depth));
@@ -312,7 +318,10 @@ function toggleNode(host: HTMLElement, node: ViewNode): void {
   if (closing) closing.hidden = !willExpand;
   if (willExpand) {
     expanded.add(node.id);
-    if (!Number(children.dataset.loaded ?? 0)) requestChildren(node.id, children, 0);
+    if (!Number(children.dataset.loaded ?? 0)) {
+      const inheritedDepth = host.dataset.inheritedExpansionDepth;
+      requestChildren(node.id, children, 0, inheritedDepth === undefined ? undefined : Math.max(0, Number(inheritedDepth) - 1));
+    }
   } else {
     expanded.delete(node.id);
   }
@@ -393,11 +402,12 @@ function ensureMatchPathLoaded(match: SearchMatch): void {
   }
 }
 
-function requestChildren(nodeId: string, container: HTMLElement, start: number): void {
+function requestChildren(nodeId: string, container: HTMLElement, start: number, expansionDepth?: number): void {
   if (container.querySelector(`:scope > .children-page[data-start="${start}"]`)) return;
   const key = `${nodeId}:${start}`;
   if (requestedChildren.has(key)) return;
   requestedChildren.add(key);
+  if (expansionDepth !== undefined) requestedExpansionDepth.set(key, expansionDepth);
   post({ type: 'requestChildren', requestId: id(), nodeId, start });
 }
 
@@ -411,9 +421,32 @@ function updateChildrenLoadButton(host: HTMLElement, container: HTMLElement, nod
   const button = document.createElement('button');
   button.className = 'children-more';
   button.textContent = text.loadMore;
-  button.addEventListener('click', () => requestChildren(nodeId, container, Number(container.dataset.loaded ?? 0)));
+  button.addEventListener('click', () => requestChildren(
+    nodeId,
+    container,
+    Number(container.dataset.loaded ?? 0),
+    lastItemExpansionDepth(container)
+  ));
   container.append(button);
   loadObserver.observe(button);
+}
+
+function lastItemExpansionDepth(container: HTMLElement): number {
+  const pages = Array.from(container.querySelectorAll<HTMLElement>(':scope > .children-page'))
+    .sort((left, right) => Number(left.dataset.start) - Number(right.dataset.start));
+  const lastPage = pages.at(-1);
+  const items = lastPage ? Array.from(lastPage.querySelectorAll<HTMLElement>(':scope > .node')) : [];
+  const lastItem = items.at(-1);
+  return lastItem ? expandedDepth(lastItem) : 0;
+}
+
+function expandedDepth(host: HTMLElement): number {
+  const toggle = host.querySelector<HTMLButtonElement>(':scope > .row > .toggle');
+  if (!toggle?.classList.contains('expanded')) return 0;
+  const children = host.querySelector<HTMLElement>(':scope > .children');
+  if (!children || children.hidden) return 1;
+  const descendants = Array.from(children.querySelectorAll<HTMLElement>(':scope > .children-page > .node'));
+  return 1 + Math.max(0, ...descendants.map(expandedDepth));
 }
 
 function updateRootProgress(): void {
@@ -503,6 +536,7 @@ function reset(): void {
   status.textContent = '';
   requestedChunks.clear();
   requestedChildren.clear();
+  requestedExpansionDepth.clear();
 }
 
 function saveState(): void { vscode.setState({ expanded: [...expanded], query: search.value, scrollTop: content.scrollTop }); }

@@ -17,7 +17,7 @@ test('collapses the rendered JSON structure without leaving orphaned brackets', 
   await page.locator('#collapse-all').click();
   await expect(page.locator('.toggle.expanded')).toHaveCount(0);
   await expect(page.locator('.closing:not([hidden])')).toHaveCount(0);
-  await expect(page.locator('.node[data-id="$"] > .row > .preview')).toHaveText('{3}');
+  await expect(page.locator('.node[data-id="$"] > .row > .preview')).toHaveText('{4}');
 });
 
 test('search expands the matching path without duplicate nodes', async ({ page }) => {
@@ -35,6 +35,7 @@ test('keeps controls floating and the tree inside a narrow viewport', async ({ p
   await expect(page.locator('.toolbar')).toHaveCSS('position', 'fixed');
   const metrics = await page.evaluate(() => ({ viewport: window.innerWidth, body: document.body.scrollWidth }));
   expect(metrics.body).toBeLessThanOrEqual(metrics.viewport);
+  await expect(page.locator('.toolbar')).toHaveCSS('right', '24px');
 });
 
 test('uses the VS Code editor font, gutter, and depth-aware brackets', async ({ page }) => {
@@ -70,6 +71,15 @@ test('renumbers visible rows after expand and collapse', async ({ page }) => {
 
   await page.locator('#collapse-all').click();
   await expect.poll(visibleNumbers).toEqual(['1']);
+});
+
+test('loads the next page to the last visible item expansion depth', async ({ page }) => {
+  await page.locator('.node[data-id="$/scores#0"] > .row > .toggle').click();
+  await page.locator('.node[data-id="$"] > .children > .children-more').click();
+
+  await expect(page.locator('.node[data-id="$/more#0"] > .row > .toggle')).toHaveClass(/expanded/);
+  await expect(page.locator('.node[data-id="$/more#0/deep#0"] > .row > .toggle')).not.toHaveClass(/expanded/);
+  await expect(page.locator('.node[data-id="$/more#0/deep#0/value#0"]')).toHaveCount(0);
 });
 
 test('uses a square editor-line-height disclosure target', async ({ page }) => {

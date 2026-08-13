@@ -14,5 +14,5 @@ export async function run(): Promise<void> {
   }>;
   assert.equal(editors[0].viewType, 'jsonlViewer.viewer');
   assert.equal(editors[0].priority, 'option');
-  assert.deepEqual(editors[0].selector.map((item) => item.filenamePattern), ['*.json', '*.jsonl', '*.ndjson']);
+  assert.deepEqual(editors[0].selector.map((item) => item.filenamePattern), ['*.{json,jsonl,ndjson}']);
 }

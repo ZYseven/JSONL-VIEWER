@@ -51,7 +51,7 @@
     .children-more, #load-more { min-height: 26px; padding: 2px 10px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border-radius: 3px; }
     .children-more { margin: 4px 0 4px calc(var(--viewer-padding) + 18px); }
     #load-more { margin: 10px 0 0 var(--viewer-padding); }
-    .toolbar { position: fixed; z-index: 20; top: 8px; right: 10px; display: flex; gap: 2px; padding: 3px; border: 1px solid var(--vscode-widget-border); border-radius: 5px; background: var(--vscode-editorWidget-background); }
+    .toolbar { position: fixed; z-index: 20; top: 8px; right: 24px; display: flex; gap: 2px; padding: 3px; border: 1px solid var(--vscode-widget-border); border-radius: 5px; background: var(--vscode-editorWidget-background); }
     .icon-button { position: relative; width: 26px; height: 26px; min-height: 26px; padding: 0; background: transparent; }
     .expand-all::before, .collapse-all::before { content: ''; position: absolute; left: 6px; top: 6px; width: 12px; height: 12px; border: 1px solid currentColor; }
     .expand-all::after, .collapse-all::after { content: ''; position: absolute; left: 9px; top: 12px; width: 8px; height: 1px; background: currentColor; }
@@ -79,18 +79,25 @@
   <main id="content"><div id="tree" role="tree"></div><button id="load-more" hidden>Load more</button></main>
   <div id="status"></div>
   <script>
+    window.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} };
     const nodes = {
       '$': [{ id: '$/sample_id#0', type: 'string', key: 'sample_id', value: '13eb2c6a', line: 2, endLine: 2, childCount: 0, trailingComma: true }, { id: '$/correct#0', type: 'boolean', key: 'correct', value: true, line: 3, endLine: 3, childCount: 0, trailingComma: true }, { id: '$/scores#0', type: 'object', key: 'scores', preview: '{2}', line: 4, endLine: 7, childCount: 2 }],
       '$/scores#0': [{ id: '$/scores#0/A#0', type: 'object', key: 'A', preview: '{1}', line: 5, endLine: 5, childCount: 1, trailingComma: true }, { id: '$/scores#0/B#0', type: 'number', key: 'B', value: '-0.01', line: 6, endLine: 6, childCount: 0 }],
       '$/scores#0/A#0': [{ id: '$/scores#0/A#0/deep#0', type: 'object', key: 'deep', preview: '{1}', line: 5, endLine: 5, childCount: 1 }],
-      '$/scores#0/A#0/deep#0': [{ id: '$/scores#0/A#0/deep#0/value#0', type: 'number', key: 'value', value: '1', line: 5, endLine: 5, childCount: 0 }]
+      '$/scores#0/A#0/deep#0': [{ id: '$/scores#0/A#0/deep#0/value#0', type: 'number', key: 'value', value: '1', line: 5, endLine: 5, childCount: 0 }],
+      '$:more': [{ id: '$/more#0', type: 'object', key: 'more', preview: '{1}', line: 9, endLine: 11, childCount: 1, defaultExpanded: true }],
+      '$/more#0': [{ id: '$/more#0/deep#0', type: 'object', key: 'deep', preview: '{1}', line: 10, endLine: 10, childCount: 1, defaultExpanded: true }],
+      '$/more#0/deep#0': [{ id: '$/more#0/deep#0/value#0', type: 'number', key: 'value', value: '1', line: 10, endLine: 10, childCount: 0 }]
     };
     window.acquireVsCodeApi = () => ({
       getState: () => undefined, setState: () => {},
       postMessage: (message) => {
         if (message.type === 'ready' || message.type === 'refresh') { dispatch({ type: 'settings', fontSize: 13 }); dispatch({ type: 'document', payload: { kind: 'json', total: 1 } }); }
-        if (message.type === 'requestChunk') dispatch({ type: 'chunkData', requestId: message.requestId, start: 0, nodes: [{ id: '$', type: 'object', preview: '{3}', line: 1, endLine: 8, childCount: 3, defaultExpanded: true }], done: true });
-        if (message.type === 'requestChildren') dispatch({ type: 'childrenData', requestId: message.requestId, nodeId: message.nodeId, start: message.start, nodes: nodes[message.nodeId] || [], done: true });
+        if (message.type === 'requestChunk') dispatch({ type: 'chunkData', requestId: message.requestId, start: 0, nodes: [{ id: '$', type: 'object', preview: '{4}', line: 1, endLine: 12, childCount: 4, defaultExpanded: true }], done: true });
+        if (message.type === 'requestChildren') {
+          const pageNodes = message.nodeId === '$' && message.start > 0 ? nodes['$:more'] : nodes[message.nodeId] || [];
+          dispatch({ type: 'childrenData', requestId: message.requestId, nodeId: message.nodeId, start: message.start, nodes: pageNodes, done: message.nodeId !== '$' || message.start > 0 });
+        }
         if (message.type === 'findMatches') dispatch({ type: 'searchResults', requestId: message.requestId, matches: message.query ? [{ nodeId: '$/scores#0/B#0', pathIds: ['$', '$/scores#0', '$/scores#0/B#0'], pathIndexes: [0,2,1], rootIndex: 0 }] : [] });
       }
     });
