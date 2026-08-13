@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+- Matched VS Code's three-color bracket cycle so deeper brackets remain visible.
+- Enlarged the expand/collapse target to a square based on the editor line height.
+
 ## 0.1.0
 
 - Added a read-only custom editor for JSON, JSONL, and NDJSON.

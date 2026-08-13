@@ -17,7 +17,7 @@
       --vscode-debugTokenExpression-string: #ce9178; --vscode-debugTokenExpression-number: #b5cea8;
       --vscode-debugTokenExpression-boolean: #569cd6; --vscode-editor-findMatchHighlightBackground: #515c6a;
       --viewer-font-size: var(--vscode-editor-font-size); --viewer-line-height: calc(var(--vscode-editor-font-size) * 1.5); --viewer-indent: 18px; --viewer-padding: 12px; --viewer-gutter: 56px;
-      --bracket-0: #ffd700; --bracket-1: #da70d6; --bracket-2: #179fff; --bracket-3: #ffd700; --bracket-4: #da70d6; --bracket-5: #179fff;
+      --bracket-0: #ffd700; --bracket-1: #da70d6; --bracket-2: #179fff;
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; }
@@ -31,8 +31,8 @@
     .row, .closing { position: relative; display: flex; min-width: max-content; min-height: var(--viewer-line-height); padding: 0 28px 0 calc(var(--viewer-padding) + var(--viewer-gutter) + var(--depth) * var(--viewer-indent)); line-height: var(--viewer-line-height); }
     .row.match { background: var(--vscode-editor-findMatchHighlightBackground); }
     .line { position: absolute; left: var(--viewer-padding); width: var(--viewer-gutter); padding-right: 14px; color: #858585; text-align: right; user-select: none; }
-    .toggle { position: relative; flex: 0 0 18px; width: 18px; min-height: var(--viewer-line-height); margin-left: -18px; padding: 0; background: transparent; }
-    .toggle::before { content: ''; position: absolute; left: 6px; top: calc(50% - 4px); border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 6px solid currentColor; }
+    .toggle { position: relative; flex: 0 0 var(--viewer-line-height); width: var(--viewer-line-height); height: var(--viewer-line-height); min-height: var(--viewer-line-height); margin-left: calc(-1 * var(--viewer-line-height)); padding: 0; background: transparent; }
+    .toggle::before { content: ''; position: absolute; left: calc(50% - 3px); top: calc(50% - 4px); border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 6px solid currentColor; }
     .toggle.expanded::before { transform: rotate(90deg); }
     .toggle.empty { visibility: hidden; }
     .key, .value, .preview { display: inline-block; margin: 0 -3px; padding: 0 3px; border-radius: 4px; cursor: pointer; white-space: pre; }
@@ -81,7 +81,9 @@
   <script>
     const nodes = {
       '$': [{ id: '$/sample_id#0', type: 'string', key: 'sample_id', value: '13eb2c6a', line: 2, endLine: 2, childCount: 0, trailingComma: true }, { id: '$/correct#0', type: 'boolean', key: 'correct', value: true, line: 3, endLine: 3, childCount: 0, trailingComma: true }, { id: '$/scores#0', type: 'object', key: 'scores', preview: '{2}', line: 4, endLine: 7, childCount: 2 }],
-      '$/scores#0': [{ id: '$/scores#0/A#0', type: 'number', key: 'A', value: '-13.31', line: 5, endLine: 5, childCount: 0, trailingComma: true }, { id: '$/scores#0/B#0', type: 'number', key: 'B', value: '-0.01', line: 6, endLine: 6, childCount: 0 }]
+      '$/scores#0': [{ id: '$/scores#0/A#0', type: 'object', key: 'A', preview: '{1}', line: 5, endLine: 5, childCount: 1, trailingComma: true }, { id: '$/scores#0/B#0', type: 'number', key: 'B', value: '-0.01', line: 6, endLine: 6, childCount: 0 }],
+      '$/scores#0/A#0': [{ id: '$/scores#0/A#0/deep#0', type: 'object', key: 'deep', preview: '{1}', line: 5, endLine: 5, childCount: 1 }],
+      '$/scores#0/A#0/deep#0': [{ id: '$/scores#0/A#0/deep#0/value#0', type: 'number', key: 'value', value: '1', line: 5, endLine: 5, childCount: 0 }]
     };
     window.acquireVsCodeApi = () => ({
       getState: () => undefined, setState: () => {},

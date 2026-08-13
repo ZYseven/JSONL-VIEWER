@@ -236,7 +236,7 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
     row.append(error);
   } else if (node.childCount) {
     const preview = document.createElement('span');
-    preview.className = `preview bracket depth-${depth % 6}`;
+    preview.className = `preview bracket depth-${depth % 3}`;
     preview.textContent = `${node.preview ?? ''}${node.trailingComma ? ',' : ''}`;
     preview.dataset.collapsed = `${node.preview ?? ''}${node.trailingComma ? ',' : ''}`;
     preview.dataset.expanded = node.type === 'object' ? '{' : '[';
@@ -282,7 +282,7 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
   closing.className = 'closing';
   closing.style.setProperty('--depth', String(depth));
   const closingBody = document.createElement('span');
-  closingBody.className = `closing-body bracket depth-${depth % 6}`;
+  closingBody.className = `closing-body bracket depth-${depth % 3}`;
   const closingLine = document.createElement('span');
   closingLine.className = 'line';
   closingLine.textContent = String(node.endLine);

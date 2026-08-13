@@ -49,6 +49,24 @@ test('uses the VS Code editor font, gutter, and depth-aware brackets', async ({ 
   await expect(page.locator('.node[data-id="$/scores#0"] > .closing > .closing-body')).toHaveClass(/depth-1/);
 });
 
+test('uses a square editor-line-height disclosure target', async ({ page }) => {
+  const toggle = page.locator('.node[data-id="$"] > .row > .toggle');
+  const size = await toggle.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { width: style.width, height: style.height };
+  });
+  expect(size.width).toBe(size.height);
+  expect(Number.parseFloat(size.width)).toBeGreaterThan(18);
+});
+
+test('cycles the fourth bracket level back to the first VS Code bracket color', async ({ page }) => {
+  await page.locator('.node[data-id="$/scores#0"] > .row > .toggle').click();
+  await page.locator('.node[data-id="$/scores#0/A#0"] > .row > .toggle').click();
+  const fourthLevel = page.locator('.node[data-id="$/scores#0/A#0/deep#0"] > .row > .preview');
+  await expect(fourthLevel).toHaveClass(/depth-0/);
+  await expect(fourthLevel).toHaveCSS('color', 'rgb(255, 215, 0)');
+});
+
 test('shows copy affordance only on the hovered token', async ({ page }) => {
   const key = page.getByText('"sample_id"', { exact: true });
   await expect(key).toHaveCSS('cursor', 'pointer');

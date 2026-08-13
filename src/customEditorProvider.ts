@@ -200,7 +200,7 @@ function nonceValue(): string {
 
 function styles(): string {
   return `
-:root { color-scheme: light dark; --viewer-font-size: var(--vscode-editor-font-size, 14px); --viewer-line-height: calc(var(--vscode-editor-font-size, 14px) * 1.5); --viewer-indent: 18px; --viewer-padding: 12px; --viewer-gutter: 56px; --bracket-0: var(--vscode-editorBracketHighlight-foreground1, var(--vscode-editor-foreground)); --bracket-1: var(--vscode-editorBracketHighlight-foreground2, var(--vscode-editor-foreground)); --bracket-2: var(--vscode-editorBracketHighlight-foreground3, var(--vscode-editor-foreground)); --bracket-3: var(--vscode-editorBracketHighlight-foreground4, var(--vscode-editor-foreground)); --bracket-4: var(--vscode-editorBracketHighlight-foreground5, var(--vscode-editor-foreground)); --bracket-5: var(--vscode-editorBracketHighlight-foreground6, var(--vscode-editor-foreground)); }
+:root { color-scheme: light dark; --viewer-font-size: var(--vscode-editor-font-size, 14px); --viewer-line-height: calc(var(--vscode-editor-font-size, 14px) * 1.5); --viewer-indent: 18px; --viewer-padding: 12px; --viewer-gutter: 56px; --bracket-0: var(--vscode-editorBracketHighlight-foreground1, var(--vscode-editor-foreground)); --bracket-1: var(--vscode-editorBracketHighlight-foreground2, var(--vscode-editor-foreground)); --bracket-2: var(--vscode-editorBracketHighlight-foreground3, var(--vscode-editor-foreground)); }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body { margin: 0; overflow: hidden; color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-editor-font-family, monospace); font-size: var(--viewer-font-size); font-weight: var(--vscode-editor-font-weight, normal); }
@@ -214,9 +214,9 @@ button { color: var(--vscode-icon-foreground); border: 0; cursor: pointer; }
 .row.match { background: color-mix(in srgb, var(--vscode-editor-findMatchHighlightBackground) 60%, transparent); }
 .row.current { outline: 1px solid var(--vscode-editor-findMatchBorder, var(--vscode-focusBorder)); outline-offset: -1px; }
 .line { position: absolute; left: var(--viewer-padding); width: var(--viewer-gutter); padding-right: 14px; color: var(--vscode-editorLineNumber-foreground, var(--vscode-editorLineNumber-activeForeground)); text-align: right; user-select: none; }
-.toggle { position: relative; flex: 0 0 18px; width: 18px; height: var(--viewer-line-height); min-height: var(--viewer-line-height); margin-left: -18px; padding: 0; background: transparent; border-radius: 3px; }
+.toggle { position: relative; flex: 0 0 var(--viewer-line-height); width: var(--viewer-line-height); height: var(--viewer-line-height); min-height: var(--viewer-line-height); margin-left: calc(-1 * var(--viewer-line-height)); padding: 0; background: transparent; border-radius: 3px; }
 .toggle:hover { background: var(--vscode-toolbar-hoverBackground); }
-.toggle::before { content: ''; position: absolute; left: 6px; top: calc(50% - 4px); width: 0; height: 0; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 6px solid currentColor; transform-origin: 3px 4px; transition: transform 120ms ease; }
+.toggle::before { content: ''; position: absolute; left: calc(50% - 3px); top: calc(50% - 4px); width: 0; height: 0; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 6px solid currentColor; transform-origin: 3px 4px; transition: transform 120ms ease; }
 .toggle.expanded::before { transform: rotate(90deg); }
 .toggle.empty { visibility: hidden; }
 .key, .value, .preview { display: inline-block; margin: 0 -3px; padding: 0 3px; border-radius: 4px; cursor: pointer; white-space: pre; transition: background-color 100ms ease; }
@@ -232,9 +232,6 @@ button { color: var(--vscode-icon-foreground); border: 0; cursor: pointer; }
 .bracket.depth-0 { color: var(--bracket-0); }
 .bracket.depth-1 { color: var(--bracket-1); }
 .bracket.depth-2 { color: var(--bracket-2); }
-.bracket.depth-3 { color: var(--bracket-3); }
-.bracket.depth-4 { color: var(--bracket-4); }
-.bracket.depth-5 { color: var(--bracket-5); }
 .duplicate { margin-left: 6px; color: var(--vscode-editorWarning-foreground); font-size: .85em; }
 .error { color: var(--vscode-errorForeground); }
 .children[hidden], .closing[hidden], #load-more[hidden], .search-panel[hidden] { display: none; }
