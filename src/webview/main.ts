@@ -37,6 +37,7 @@ let pendingReveal = false;
 let expandAllActive = false;
 let restoreScrollTop = persisted?.scrollTop ?? 0;
 let searchOpen = false;
+let lineNumbersQueued = false;
 const requestedChunks = new Set<number>();
 const requestedChildren = new Set<string>();
 const loadObserver = new IntersectionObserver((entries) => {
@@ -84,6 +85,7 @@ window.addEventListener('message', (event: MessageEvent<ExtensionToWebview>) => 
       updateRootProgress();
       loadMore.hidden = done;
       restoreExpanded(tree);
+      scheduleVisibleLineNumbers();
       applyMatches();
       if (restoreScrollTop && message.start === 0) content.scrollTop = restoreScrollTop;
       if (pendingReveal) {
@@ -109,6 +111,7 @@ window.addEventListener('message', (event: MessageEvent<ExtensionToWebview>) => 
       updateChildProgress(container);
       updateChildrenLoadButton(host!, container, message.nodeId);
       restoreExpanded(container);
+      scheduleVisibleLineNumbers();
       applyMatches();
       if (expandAllActive) window.setTimeout(expandAllVisible, 0);
       if (currentMatch >= 0) window.setTimeout(revealCurrent, 0);
@@ -192,7 +195,6 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
 
   const line = document.createElement('span');
   line.className = 'line';
-  line.textContent = String(node.line);
   line.ariaHidden = 'true';
   row.append(line);
 
@@ -285,7 +287,6 @@ function renderNode(node: ViewNode, depth: number): HTMLElement {
   closingBody.className = `closing-body bracket depth-${depth % 3}`;
   const closingLine = document.createElement('span');
   closingLine.className = 'line';
-  closingLine.textContent = String(node.endLine);
   closingLine.ariaHidden = 'true';
   closing.append(closingLine);
   closingBody.textContent = `${node.type === 'object' ? '}' : node.type === 'array' ? ']' : ''}${node.trailingComma ? ',' : ''}`;
@@ -315,7 +316,33 @@ function toggleNode(host: HTMLElement, node: ViewNode): void {
   } else {
     expanded.delete(node.id);
   }
+  scheduleVisibleLineNumbers();
   saveState();
+}
+
+function scheduleVisibleLineNumbers(): void {
+  if (lineNumbersQueued) return;
+  lineNumbersQueued = true;
+  window.queueMicrotask(() => {
+    lineNumbersQueued = false;
+    renumberVisibleLines();
+  });
+}
+
+function renumberVisibleLines(): void {
+  let nextLine = 0;
+  const items = Array.from(tree.querySelectorAll<HTMLElement>('.row, .closing'));
+  for (const item of items) {
+    const line = item.querySelector<HTMLElement>(':scope > .line');
+    if (!line) continue;
+    if (item.closest('[hidden]')) {
+      line.textContent = '';
+      continue;
+    }
+    line.textContent = String(++nextLine);
+  }
+  const digits = Math.max(1, String(nextLine).length);
+  document.documentElement.style.setProperty('--viewer-line-number-width', `max(44px, ${digits + 2}ch)`);
 }
 
 function expandAllVisible(): void {

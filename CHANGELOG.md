@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3
+
+- Separated the line-number and folding gutters to prevent overlap.
+- Renumbered lines from the currently visible tree after every expand, collapse, and incremental load.
+
 ## 0.1.2
 
 - Matched VS Code's three-color bracket cycle so deeper brackets remain visible.

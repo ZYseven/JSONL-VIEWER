@@ -16,7 +16,7 @@
       --vscode-toolbar-hoverBackground: #2a2d2e; --vscode-symbolIcon-propertyForeground: #9cdcfe;
       --vscode-debugTokenExpression-string: #ce9178; --vscode-debugTokenExpression-number: #b5cea8;
       --vscode-debugTokenExpression-boolean: #569cd6; --vscode-editor-findMatchHighlightBackground: #515c6a;
-      --viewer-font-size: var(--vscode-editor-font-size); --viewer-line-height: calc(var(--vscode-editor-font-size) * 1.5); --viewer-indent: 18px; --viewer-padding: 12px; --viewer-gutter: 56px;
+      --viewer-font-size: var(--vscode-editor-font-size); --viewer-line-height: calc(var(--vscode-editor-font-size) * 1.5); --viewer-indent: 18px; --viewer-padding: 0px; --viewer-line-number-width: 44px; --viewer-fold-gutter: 24px; --viewer-gutter: calc(var(--viewer-line-number-width) + var(--viewer-fold-gutter));
       --bracket-0: #ffd700; --bracket-1: #da70d6; --bracket-2: #179fff;
     }
     * { box-sizing: border-box; }
@@ -30,7 +30,7 @@
     .root-page, .children-page { display: contents; }
     .row, .closing { position: relative; display: flex; min-width: max-content; min-height: var(--viewer-line-height); padding: 0 28px 0 calc(var(--viewer-padding) + var(--viewer-gutter) + var(--depth) * var(--viewer-indent)); line-height: var(--viewer-line-height); }
     .row.match { background: var(--vscode-editor-findMatchHighlightBackground); }
-    .line { position: absolute; left: var(--viewer-padding); width: var(--viewer-gutter); padding-right: 14px; color: #858585; text-align: right; user-select: none; }
+    .line { position: absolute; left: var(--viewer-padding); width: var(--viewer-line-number-width); padding-right: 8px; color: #858585; text-align: right; user-select: none; }
     .toggle { position: relative; flex: 0 0 var(--viewer-line-height); width: var(--viewer-line-height); height: var(--viewer-line-height); min-height: var(--viewer-line-height); margin-left: calc(-1 * var(--viewer-line-height)); padding: 0; background: transparent; }
     .toggle::before { content: ''; position: absolute; left: calc(50% - 3px); top: calc(50% - 4px); border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 6px solid currentColor; }
     .toggle.expanded::before { transform: rotate(90deg); }
@@ -60,7 +60,7 @@
     .search-panel { position: fixed; z-index: 30; top: 8px; right: 10px; display: grid; grid-template-columns: minmax(180px,320px) 44px 26px 26px 26px; align-items: center; gap: 2px; padding: 4px; border: 1px solid var(--vscode-widget-border); border-radius: 5px; background: var(--vscode-editorWidget-background); }
     #search { height: 26px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid transparent; }
     #search-count { text-align: center; color: var(--vscode-descriptionForeground); }
-    @media (max-width: 520px) { :root { --viewer-padding: 6px; --viewer-gutter: 46px; --viewer-indent: 16px; } .search-panel { left: 8px; right: 8px; grid-template-columns: minmax(100px,1fr) 38px 26px 26px 26px; } }
+    @media (max-width: 520px) { :root { --viewer-indent: 16px; } .search-panel { left: 8px; right: 8px; grid-template-columns: minmax(100px,1fr) 38px 26px 26px 26px; } }
   </style>
 </head>
 <body>

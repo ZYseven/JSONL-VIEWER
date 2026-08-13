@@ -49,6 +49,29 @@ test('uses the VS Code editor font, gutter, and depth-aware brackets', async ({ 
   await expect(page.locator('.node[data-id="$/scores#0"] > .closing > .closing-body')).toHaveClass(/depth-1/);
 });
 
+test('keeps the line-number gutter left of the disclosure control', async ({ page }) => {
+  const geometry = await page.locator('.node[data-id="$"] > .row').evaluate((row) => {
+    const line = row.querySelector('.line').getBoundingClientRect();
+    const toggle = row.querySelector('.toggle').getBoundingClientRect();
+    return { lineRight: line.right, toggleLeft: toggle.left };
+  });
+  expect(geometry.lineRight).toBeLessThanOrEqual(geometry.toggleLeft);
+});
+
+test('renumbers visible rows after expand and collapse', async ({ page }) => {
+  const visibleNumbers = () => page.locator('.row:visible > .line, .closing:visible > .line').allTextContents();
+  await expect.poll(visibleNumbers).toEqual(['1', '2', '3', '4', '5']);
+
+  await page.locator('.node[data-id="$/scores#0"] > .row > .toggle').click();
+  await expect.poll(visibleNumbers).toEqual(['1', '2', '3', '4', '5', '6', '7', '8']);
+
+  await page.locator('.node[data-id="$/scores#0"] > .row > .toggle').click();
+  await expect.poll(visibleNumbers).toEqual(['1', '2', '3', '4', '5']);
+
+  await page.locator('#collapse-all').click();
+  await expect.poll(visibleNumbers).toEqual(['1']);
+});
+
 test('uses a square editor-line-height disclosure target', async ({ page }) => {
   const toggle = page.locator('.node[data-id="$"] > .row > .toggle');
   const size = await toggle.evaluate((element) => {

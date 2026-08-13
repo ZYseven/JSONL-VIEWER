@@ -200,7 +200,7 @@ function nonceValue(): string {
 
 function styles(): string {
   return `
-:root { color-scheme: light dark; --viewer-font-size: var(--vscode-editor-font-size, 14px); --viewer-line-height: calc(var(--vscode-editor-font-size, 14px) * 1.5); --viewer-indent: 18px; --viewer-padding: 12px; --viewer-gutter: 56px; --bracket-0: var(--vscode-editorBracketHighlight-foreground1, var(--vscode-editor-foreground)); --bracket-1: var(--vscode-editorBracketHighlight-foreground2, var(--vscode-editor-foreground)); --bracket-2: var(--vscode-editorBracketHighlight-foreground3, var(--vscode-editor-foreground)); }
+:root { color-scheme: light dark; --viewer-font-size: var(--vscode-editor-font-size, 14px); --viewer-line-height: calc(var(--vscode-editor-font-size, 14px) * 1.5); --viewer-indent: 18px; --viewer-padding: 0px; --viewer-line-number-width: 44px; --viewer-fold-gutter: 24px; --viewer-gutter: calc(var(--viewer-line-number-width) + var(--viewer-fold-gutter)); --bracket-0: var(--vscode-editorBracketHighlight-foreground1, var(--vscode-editor-foreground)); --bracket-1: var(--vscode-editorBracketHighlight-foreground2, var(--vscode-editor-foreground)); --bracket-2: var(--vscode-editorBracketHighlight-foreground3, var(--vscode-editor-foreground)); }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body { margin: 0; overflow: hidden; color: var(--vscode-editor-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-editor-font-family, monospace); font-size: var(--viewer-font-size); font-weight: var(--vscode-editor-font-weight, normal); }
@@ -213,7 +213,7 @@ button { color: var(--vscode-icon-foreground); border: 0; cursor: pointer; }
 .row, .closing { position: relative; display: flex; min-width: max-content; min-height: var(--viewer-line-height); align-items: flex-start; padding: 0 28px 0 calc(var(--viewer-padding) + var(--viewer-gutter) + var(--depth) * var(--viewer-indent)); line-height: var(--viewer-line-height); }
 .row.match { background: color-mix(in srgb, var(--vscode-editor-findMatchHighlightBackground) 60%, transparent); }
 .row.current { outline: 1px solid var(--vscode-editor-findMatchBorder, var(--vscode-focusBorder)); outline-offset: -1px; }
-.line { position: absolute; left: var(--viewer-padding); width: var(--viewer-gutter); padding-right: 14px; color: var(--vscode-editorLineNumber-foreground, var(--vscode-editorLineNumber-activeForeground)); text-align: right; user-select: none; }
+.line { position: absolute; left: var(--viewer-padding); width: var(--viewer-line-number-width); padding-right: 8px; color: var(--vscode-editorLineNumber-foreground, var(--vscode-editorLineNumber-activeForeground)); text-align: right; user-select: none; }
 .toggle { position: relative; flex: 0 0 var(--viewer-line-height); width: var(--viewer-line-height); height: var(--viewer-line-height); min-height: var(--viewer-line-height); margin-left: calc(-1 * var(--viewer-line-height)); padding: 0; background: transparent; border-radius: 3px; }
 .toggle:hover { background: var(--vscode-toolbar-hoverBackground); }
 .toggle::before { content: ''; position: absolute; left: calc(50% - 3px); top: calc(50% - 4px); width: 0; height: 0; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 6px solid currentColor; transform-origin: 3px 4px; transition: transform 120ms ease; }
@@ -264,6 +264,6 @@ button { color: var(--vscode-icon-foreground); border: 0; cursor: pointer; }
 #status { position: fixed; right: 10px; bottom: 8px; color: var(--vscode-descriptionForeground); background: var(--vscode-editor-background); }
 .empty-state { padding: 24px var(--viewer-padding); color: var(--vscode-descriptionForeground); }
 @media (prefers-reduced-motion: reduce) { .toggle::before, .key, .value, .preview { transition: none; } }
-@media (max-width: 520px) { :root { --viewer-padding: 6px; --viewer-gutter: 46px; --viewer-indent: 16px; } .search-panel { left: 8px; right: 8px; grid-template-columns: minmax(100px, 1fr) 38px 26px 26px 26px; } }
+@media (max-width: 520px) { :root { --viewer-indent: 16px; } .search-panel { left: 8px; right: 8px; grid-template-columns: minmax(100px, 1fr) 38px 26px 26px 26px; } }
 `;
 }
