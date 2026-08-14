@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.5
+
+- Streams large JSONL records from top to bottom without recursively expanding every record on first render.
+- Keeps each streamed record available on demand so opening a deep object does not block the next top-level records.
+
 ## 0.1.4
 
 - Matched newly loaded JSONL records to the expansion depth of the previous last record.

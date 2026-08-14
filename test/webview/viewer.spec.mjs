@@ -82,6 +82,14 @@ test('loads the next page to the last visible item expansion depth', async ({ pa
   await expect(page.locator('.node[data-id="$/more#0/deep#0/value#0"]')).toHaveCount(0);
 });
 
+test('loads streamed JSONL records top-to-bottom without inheriting deep expansion', async ({ page }) => {
+  await page.goto('/test/webview/harness.html?jsonl');
+  await page.locator('.node[data-id="record:1"] > .row > .toggle').click();
+  await page.locator('.node[data-id="$jsonl"] > .children > .children-more').click();
+
+  await expect(page.locator('.node[data-id="record:2"] > .row > .toggle')).not.toHaveClass(/expanded/);
+});
+
 test('uses a square editor-line-height disclosure target', async ({ page }) => {
   const toggle = page.locator('.node[data-id="$"] > .row > .toggle');
   const size = await toggle.evaluate((element) => {

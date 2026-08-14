@@ -421,12 +421,10 @@ function updateChildrenLoadButton(host: HTMLElement, container: HTMLElement, nod
   const button = document.createElement('button');
   button.className = 'children-more';
   button.textContent = text.loadMore;
-  button.addEventListener('click', () => requestChildren(
-    nodeId,
-    container,
-    Number(container.dataset.loaded ?? 0),
-    lastItemExpansionDepth(container)
-  ));
+  button.addEventListener('click', () => {
+    const expansionDepth = nodeId === '$jsonl' ? undefined : lastItemExpansionDepth(container);
+    requestChildren(nodeId, container, Number(container.dataset.loaded ?? 0), expansionDepth);
+  });
   container.append(button);
   loadObserver.observe(button);
 }

@@ -52,7 +52,11 @@ export class StreamingJsonlDocumentModel {
       const items = this.records.slice(start, start + size).map((record, localIndex) => {
         const recordIndex = start + localIndex;
         try {
-          return this.toView(this.parseRecord(record, recordIndex), recordIndex < this.records.length - 1 || !this.eof);
+          return this.toView(
+            this.parseRecord(record, recordIndex),
+            recordIndex < this.records.length - 1 || !this.eof,
+            false
+          );
         } catch (error) {
           if (!(error instanceof JsonParseError)) throw error;
           return {
@@ -202,7 +206,7 @@ export class StreamingJsonlDocumentModel {
     };
   }
 
-  private toView(node: JsonNode, trailingComma = false): ViewNode {
+  private toView(node: JsonNode, trailingComma = false, defaultExpanded = true): ViewNode {
     const displayValue = node.children.length ? undefined : node.type === 'number' ? node.raw : node.value;
     const truncated = typeof displayValue === 'string' && displayValue.length > 262_144;
     return {
@@ -216,7 +220,7 @@ export class StreamingJsonlDocumentModel {
       childCount: node.children.length,
       duplicate: node.keyOccurrence !== undefined && node.keyOccurrence > 0,
       truncated,
-      defaultExpanded: node.children.length > 0,
+      defaultExpanded: defaultExpanded && node.children.length > 0,
       trailingComma
     };
   }

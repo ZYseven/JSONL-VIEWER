@@ -79,6 +79,7 @@
   <main id="content"><div id="tree" role="tree"></div><button id="load-more" hidden>Load more</button></main>
   <div id="status"></div>
   <script>
+    const jsonlMode = new URLSearchParams(location.search).has('jsonl');
     window.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} };
     const nodes = {
       '$': [{ id: '$/sample_id#0', type: 'string', key: 'sample_id', value: '13eb2c6a', line: 2, endLine: 2, childCount: 0, trailingComma: true }, { id: '$/correct#0', type: 'boolean', key: 'correct', value: true, line: 3, endLine: 3, childCount: 0, trailingComma: true }, { id: '$/scores#0', type: 'object', key: 'scores', preview: '{2}', line: 4, endLine: 7, childCount: 2 }],
@@ -92,11 +93,30 @@
     window.acquireVsCodeApi = () => ({
       getState: () => undefined, setState: () => {},
       postMessage: (message) => {
-        if (message.type === 'ready' || message.type === 'refresh') { dispatch({ type: 'settings', fontSize: 13 }); dispatch({ type: 'document', payload: { kind: 'json', total: 1 } }); }
-        if (message.type === 'requestChunk') dispatch({ type: 'chunkData', requestId: message.requestId, start: 0, nodes: [{ id: '$', type: 'object', preview: '{4}', line: 1, endLine: 12, childCount: 4, defaultExpanded: true }], done: true });
+        if (message.type === 'ready' || message.type === 'refresh') {
+          dispatch({ type: 'settings', fontSize: 13 });
+          dispatch({ type: 'document', payload: jsonlMode ? { kind: 'jsonl', total: 1 } : { kind: 'json', total: 1 } });
+        }
+        if (message.type === 'requestChunk') dispatch({
+          type: 'chunkData', requestId: message.requestId, start: 0,
+          nodes: [jsonlMode
+            ? { id: '$jsonl', type: 'array', preview: '[2+]', line: 1, endLine: 2, childCount: 3, defaultExpanded: true }
+            : { id: '$', type: 'object', preview: '{4}', line: 1, endLine: 12, childCount: 4, defaultExpanded: true }],
+          done: true
+        });
         if (message.type === 'requestChildren') {
-          const pageNodes = message.nodeId === '$' && message.start > 0 ? nodes['$:more'] : nodes[message.nodeId] || [];
-          dispatch({ type: 'childrenData', requestId: message.requestId, nodeId: message.nodeId, start: message.start, nodes: pageNodes, done: message.nodeId !== '$' || message.start > 0 });
+          let pageNodes;
+          let done;
+          if (jsonlMode && message.nodeId === '$jsonl') {
+            pageNodes = message.start > 0
+              ? [{ id: 'record:2', type: 'object', key: undefined, preview: '{1}', line: 2, endLine: 2, childCount: 1, defaultExpanded: false }]
+              : [{ id: 'record:1', type: 'object', key: undefined, preview: '{1}', line: 1, endLine: 1, childCount: 1, defaultExpanded: false }];
+            done = message.start > 0;
+          } else {
+            pageNodes = message.nodeId === '$' && message.start > 0 ? nodes['$:more'] : nodes[message.nodeId] || [];
+            done = message.nodeId !== '$' || message.start > 0;
+          }
+          dispatch({ type: 'childrenData', requestId: message.requestId, nodeId: message.nodeId, start: message.start, nodes: pageNodes, done });
         }
         if (message.type === 'findMatches') dispatch({ type: 'searchResults', requestId: message.requestId, matches: message.query ? [{ nodeId: '$/scores#0/B#0', pathIds: ['$', '$/scores#0', '$/scores#0/B#0'], pathIndexes: [0,2,1], rootIndex: 0 }] : [] });
       }
