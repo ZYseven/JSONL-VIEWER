@@ -90,6 +90,19 @@ test('loads streamed JSONL records top-to-bottom without inheriting deep expansi
   await expect(page.locator('.node[data-id="record:2"] > .row > .toggle')).not.toHaveClass(/expanded/);
 });
 
+test('expands streamed JSONL depth-first in visible top-to-bottom order', async ({ page }) => {
+  await page.goto('/test/webview/harness.html?jsonl-expanded');
+
+  await expect.poll(() => page.evaluate(() => window.__childRequests.slice(0, 4))).toEqual([
+    '$jsonl',
+    'record:1',
+    'record:1/deep#0',
+    'record:2'
+  ]);
+  await expect(page.locator('.node[data-id="record:1"] > .row > .toggle')).toHaveClass(/expanded/);
+  await expect(page.locator('.node[data-id="record:2"] > .row > .toggle')).toHaveClass(/expanded/);
+});
+
 test('uses a square editor-line-height disclosure target', async ({ page }) => {
   const toggle = page.locator('.node[data-id="$"] > .row > .toggle');
   const size = await toggle.evaluate((element) => {

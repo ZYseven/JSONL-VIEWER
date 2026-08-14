@@ -27,7 +27,7 @@ test('reads JSONL records incrementally without indexing the whole file', async 
   model.dispose();
 });
 
-test('keeps streamed top-level records collapsed until the user opens one', async () => {
+test('keeps streamed top-level records expanded by default', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'jsonl-viewer-'));
   const file = join(directory, 'deep-records.jsonl');
   await writeFile(file, '{"id":1,"payload":{"nested":{"value":true}}}\n{"id":2}\n');
@@ -37,7 +37,7 @@ test('keeps streamed top-level records collapsed until the user opens one', asyn
   await model.initialize();
   const root = model.chunk(0).nodes[0];
   const page = await model.children(root.id, 0, 10);
-  assert.deepEqual(page.nodes.map((node) => node.defaultExpanded), [false, false]);
+  assert.deepEqual(page.nodes.map((node) => node.defaultExpanded), [true, true]);
   model.dispose();
 });
 

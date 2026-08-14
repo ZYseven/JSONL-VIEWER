@@ -79,7 +79,10 @@
   <main id="content"><div id="tree" role="tree"></div><button id="load-more" hidden>Load more</button></main>
   <div id="status"></div>
   <script>
-    const jsonlMode = new URLSearchParams(location.search).has('jsonl');
+    const params = new URLSearchParams(location.search);
+    const jsonlMode = params.has('jsonl');
+    const jsonlExpandedMode = params.has('jsonl-expanded');
+    window.__childRequests = [];
     window.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} };
     const nodes = {
       '$': [{ id: '$/sample_id#0', type: 'string', key: 'sample_id', value: '13eb2c6a', line: 2, endLine: 2, childCount: 0, trailingComma: true }, { id: '$/correct#0', type: 'boolean', key: 'correct', value: true, line: 3, endLine: 3, childCount: 0, trailingComma: true }, { id: '$/scores#0', type: 'object', key: 'scores', preview: '{2}', line: 4, endLine: 7, childCount: 2 }],
@@ -95,19 +98,35 @@
       postMessage: (message) => {
         if (message.type === 'ready' || message.type === 'refresh') {
           dispatch({ type: 'settings', fontSize: 13 });
-          dispatch({ type: 'document', payload: jsonlMode ? { kind: 'jsonl', total: 1 } : { kind: 'json', total: 1 } });
+          dispatch({ type: 'document', payload: jsonlMode || jsonlExpandedMode ? { kind: 'jsonl', total: 1 } : { kind: 'json', total: 1 } });
         }
         if (message.type === 'requestChunk') dispatch({
           type: 'chunkData', requestId: message.requestId, start: 0,
-          nodes: [jsonlMode
+          nodes: [jsonlMode || jsonlExpandedMode
             ? { id: '$jsonl', type: 'array', preview: '[2+]', line: 1, endLine: 2, childCount: 3, defaultExpanded: true }
             : { id: '$', type: 'object', preview: '{4}', line: 1, endLine: 12, childCount: 4, defaultExpanded: true }],
           done: true
         });
         if (message.type === 'requestChildren') {
+          window.__childRequests.push(message.nodeId);
           let pageNodes;
           let done;
-          if (jsonlMode && message.nodeId === '$jsonl') {
+          if (jsonlExpandedMode && message.nodeId === '$jsonl') {
+            pageNodes = [
+              { id: 'record:1', type: 'object', preview: '{1}', line: 1, endLine: 1, childCount: 1, defaultExpanded: true, trailingComma: true },
+              { id: 'record:2', type: 'object', preview: '{1}', line: 2, endLine: 2, childCount: 1, defaultExpanded: true }
+            ];
+            done = true;
+          } else if (jsonlExpandedMode && message.nodeId === 'record:1') {
+            pageNodes = [{ id: 'record:1/deep#0', type: 'object', key: 'deep', preview: '{1}', line: 1, endLine: 1, childCount: 1, defaultExpanded: true }];
+            done = true;
+          } else if (jsonlExpandedMode && message.nodeId === 'record:1/deep#0') {
+            pageNodes = [{ id: 'record:1/deep#0/value#0', type: 'number', key: 'value', value: '1', line: 1, endLine: 1, childCount: 0 }];
+            done = true;
+          } else if (jsonlExpandedMode && message.nodeId === 'record:2') {
+            pageNodes = [{ id: 'record:2/value#0', type: 'number', key: 'value', value: '2', line: 2, endLine: 2, childCount: 0 }];
+            done = true;
+          } else if (jsonlMode && message.nodeId === '$jsonl') {
             pageNodes = message.start > 0
               ? [{ id: 'record:2', type: 'object', key: undefined, preview: '{1}', line: 2, endLine: 2, childCount: 1, defaultExpanded: false }]
               : [{ id: 'record:1', type: 'object', key: undefined, preview: '{1}', line: 1, endLine: 1, childCount: 1, defaultExpanded: false }];

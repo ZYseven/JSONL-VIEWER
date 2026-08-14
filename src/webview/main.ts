@@ -38,6 +38,9 @@ let expandAllActive = false;
 let restoreScrollTop = persisted?.scrollTop ?? 0;
 let searchOpen = false;
 let lineNumbersQueued = false;
+let autoExpandQueued = false;
+let autoExpandRequestKey: string | undefined;
+let autoExpandCursor: HTMLElement | undefined;
 const requestedChunks = new Set<number>();
 const requestedChildren = new Set<string>();
 const requestedExpansionDepth = new Map<string, number>();
@@ -103,6 +106,7 @@ window.addEventListener('message', (event: MessageEvent<ExtensionToWebview>) => 
       const inheritedExpansionDepth = requestedExpansionDepth.get(requestKey);
       requestedChildren.delete(requestKey);
       requestedExpansionDepth.delete(requestKey);
+      if (autoExpandRequestKey === requestKey) autoExpandRequestKey = undefined;
       const page = document.createElement('div');
       page.className = 'children-page';
       page.dataset.start = String(message.start);
@@ -135,6 +139,8 @@ window.addEventListener('message', (event: MessageEvent<ExtensionToWebview>) => 
       revealCurrent();
       break;
     case 'error':
+      autoExpandRequestKey = undefined;
+      scheduleAutoExpand();
       status.textContent = message.details ? `${message.message} ${message.details}` : message.message;
       break;
   }
@@ -144,6 +150,8 @@ loadMore.addEventListener('click', () => requestChunk(loaded));
 element<HTMLButtonElement>('refresh').addEventListener('click', () => post({ type: 'refresh' }));
 element<HTMLButtonElement>('collapse-all').addEventListener('click', () => {
   expandAllActive = false;
+  autoExpandRequestKey = undefined;
+  autoExpandCursor = undefined;
   document.querySelectorAll<HTMLButtonElement>('.toggle.expanded').forEach((item) => item.click());
   expanded.clear();
   saveState();
@@ -358,9 +366,10 @@ function expandAllVisible(): void {
   const hosts = Array.from(tree.querySelectorAll<HTMLElement>('.node')).slice(0, 10_000);
   for (const host of hosts) {
     const toggle = host.querySelector<HTMLButtonElement>(':scope > .row > .toggle');
-    const children = host.querySelector<HTMLElement>(':scope > .children');
-    if (toggle && children?.hidden && !toggle.classList.contains('empty')) toggle.click();
+    if (toggle && !toggle.classList.contains('empty')) expanded.add(host.dataset.id!);
   }
+  autoExpandCursor = undefined;
+  scheduleAutoExpand();
   if (tree.querySelectorAll('.node').length >= 10_000) {
     expandAllActive = false;
     status.textContent = text.expandLimit;
@@ -501,19 +510,43 @@ function cycleMatch(direction: number): void {
 }
 
 function restoreExpanded(root: ParentNode): void {
-  for (const nodeId of expanded) {
-    const host = root.querySelector<HTMLElement>(`.node[data-id="${cssEscape(nodeId)}"]`);
-    if (!host) continue;
+  if (root === tree) autoExpandCursor = undefined;
+  scheduleAutoExpand();
+}
+
+function scheduleAutoExpand(): void {
+  if (autoExpandQueued || autoExpandRequestKey) return;
+  autoExpandQueued = true;
+  window.queueMicrotask(() => {
+    autoExpandQueued = false;
+    continueAutoExpand();
+  });
+}
+
+function continueAutoExpand(): void {
+  if (autoExpandRequestKey) return;
+  const walker = document.createTreeWalker(tree, NodeFilter.SHOW_ELEMENT, {
+    acceptNode: (node) => (node as HTMLElement).classList.contains('node')
+      ? NodeFilter.FILTER_ACCEPT
+      : NodeFilter.FILTER_SKIP
+  });
+  if (autoExpandCursor?.isConnected) walker.currentNode = autoExpandCursor;
+  else autoExpandCursor = undefined;
+  for (let current = walker.nextNode(); current; current = walker.nextNode()) {
+    const host = current as HTMLElement;
+    if (host.closest('[hidden]')) continue;
+    const nodeId = host.dataset.id;
+    if (!nodeId || !expanded.has(nodeId)) continue;
     const children = host.querySelector<HTMLElement>(':scope > .children');
     const toggle = host.querySelector<HTMLButtonElement>(':scope > .row > .toggle');
-    if (toggle && !toggle.classList.contains('empty')) {
-      if (children?.hidden) toggle.click();
-      else {
-        toggle.classList.add('expanded');
-        toggle.ariaExpanded = 'true';
-      }
-    }
+    if (!children || !toggle || toggle.classList.contains('empty') || !children.hidden) continue;
+    const needsRequest = !Number(children.dataset.loaded ?? 0);
+    autoExpandCursor = host;
+    if (needsRequest) autoExpandRequestKey = `${nodeId}:0`;
+    toggle.click();
+    if (needsRequest) return;
   }
+  autoExpandCursor = undefined;
 }
 
 function requestChunk(start: number): void {
@@ -535,6 +568,9 @@ function reset(): void {
   requestedChunks.clear();
   requestedChildren.clear();
   requestedExpansionDepth.clear();
+  autoExpandQueued = false;
+  autoExpandRequestKey = undefined;
+  autoExpandCursor = undefined;
 }
 
 function saveState(): void { vscode.setState({ expanded: [...expanded], query: search.value, scrollTop: content.scrollTop }); }

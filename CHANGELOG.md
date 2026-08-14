@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.6
+
+- Keeps streamed JSONL records expanded by default, including large files.
+- Expands nodes serially in visible depth-first order so upper records render deeply before lower records and do not flood the extension host with sibling requests.
+
 ## 0.1.5
 
 - Streams large JSONL records from top to bottom without recursively expanding every record on first render.

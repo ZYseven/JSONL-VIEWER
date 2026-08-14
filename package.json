@@ -2,7 +2,7 @@
   "name": "jsonl-viewer",
   "displayName": "json viewer",
   "description": "%description%",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "ZYseven",
   "license": "MIT",
   "repository": {
